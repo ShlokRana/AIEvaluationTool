@@ -28,3 +28,6 @@ AI
 *.sqlite3
 chroma_langchain_db/
 strategy_id/
+Documentations
+
+prep_data/

@@ -19,14 +19,19 @@ dflt_vals = FileLoader._to_dot_dict(__file__, os.getenv("DEFAULT_VALUES_PATH"), 
 class GrammaticalStrategy(Strategy):
     def __init__(self, name: str = "grammatical_strategies", **kwargs) -> None:
         super().__init__(name, kwargs=kwargs)
+        download_path = language_tool_python.utils.get_language_tool_download_path()
+        if os.path.exists(download_path):
+            self.tool = language_tool_python.LanguageTool('en-US')
+        else:
+            print("Downloading LanguageTool...")
+            self.tool = language_tool_python.LanguageTool('en-US')
 
     def grammarCorrector(self, text:str):
-        tool = language_tool_python.LanguageTool('en-US')
-        result = tool.check(text)
+        result = self.tool.check(text)
         if not result:
             return text
         else:
-            return tool.correct(text)
+            return self.tool.correct(text)
     
     def evaluate(self, testcase:TestCase, conversation:Conversation):
         logger.info("Evaluating Grammatical Errors...")
