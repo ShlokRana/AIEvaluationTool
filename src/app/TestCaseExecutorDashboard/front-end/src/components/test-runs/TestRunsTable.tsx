@@ -166,7 +166,7 @@ const TestRunsTable: React.FC<Props> = ({filters}) => {
             icon="bi-file-earmark-text"
             onClick={() => {
               const link = document.createElement("a");
-              link.href = `http://localhost:8000/test-runs/${run.run_name}/evaluation-report`;
+              link.href = `http://localhost:7000/test-runs/${run.run_name}/evaluation-report`;
               link.setAttribute(
                 "download",
                 `${run.run_name}-evaluation.xlsx`

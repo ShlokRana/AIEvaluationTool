@@ -22,7 +22,7 @@ const Filters: React.FC<FiltersProps> = ({ onFilterChange }) => {
 
   useEffect(() => {
     setIsLoading(true);
-    fetch("http://localhost:8000/get_all_filters")
+    fetch("http://localhost:7000/get_all_filters")
       .then((res) => res.json())
       .then((data: AllFilters) => {
         setFilters(data);
