@@ -57,3 +57,9 @@ src/app/TDMS/front-end/*.sw?
 *.sqlite3
 chroma_langchain_db/
 data/AIEvaluationData.db
+
+src/app/TestCaseExecutorDashboard/back-end/__pycache__/
+src/app/TestCaseExecutorDashboard/back-end/logs/
+src/app/TestCaseExecutorDashboard/back-end/*.log
+src/app/TestCaseExecutorDashboard/front-end/node_modules/
+src/app/TestCaseExecutorDashboard/front-end/build/
