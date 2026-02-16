@@ -3585,6 +3585,23 @@ class DB:
                              plan_name=result.plan.plan_name,
                              status=getattr(result, "testcase_status"),
                              detail_id=detail_id)
+
+    def get_run_details_by_run_id(self, run_id: int) -> list[RunDetail]:
+        with self.Session() as session:
+            sql = select(TestRunDetails).where(TestRunDetails.run_id == run_id)
+            results = session.execute(sql).scalars().all()
+
+            return [
+                RunDetail(
+                    run_name=r.run.run_name,
+                    testcase_name=r.testcase.testcase_name,
+                    metric_name=r.metric.metric_name,
+                    plan_name=r.plan.plan_name,
+                    status=r.testcase_status,
+                    detail_id=r.detail_id
+                )
+                for r in results
+            ]                         
         
     def add_or_update_testrun_detail(self, run_detail: RunDetail) -> int:
         """

@@ -50,9 +50,13 @@ class RunEvaluationSummaryResponse(BaseModel):
 class NewTestRun(BaseModel):
     target: str
     testPlan: str          # ✅ NAME, not ID
-    testCaseId: Optional[int] = None
+    testCaseId: Optional[str] = None
     metric: str            # ✅ NAME
     metric: str
     maxTestCases: str
     domain: str
     language: str
+    runName: Optional[str] = None
+
+class ContinueRunRequest(BaseModel):
+    run_name: str    

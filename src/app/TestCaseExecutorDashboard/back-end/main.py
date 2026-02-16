@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI, HTTPException, Query, WebSocket, BackgroundTasks,WebSocketDisconnect, Request
 from fastapi.responses import FileResponse
 from services.ws_manager import ws_manager 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from typing import Optional, List
 import tempfile
 import os
@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import sys
 import randomname
 from collections import defaultdict
-from schemas import TestRunResponse,TestRunDetailsResponse,FilterResponse,AllFiltersResponse,TestRunSummaryResponse,TestRunFullResponse,RunEvaluationSummaryResponse,EvaluationItemResponse,ConversationResponse,TestCaseResponse,FullConversationResponse, TimelineEvent,NewTestRun
+from schemas import TestRunResponse,TestRunDetailsResponse,FilterResponse,AllFiltersResponse,TestRunSummaryResponse,TestRunFullResponse,RunEvaluationSummaryResponse,EvaluationItemResponse,ConversationResponse,TestCaseResponse,FullConversationResponse, TimelineEvent,NewTestRun,ContinueRunRequest
 load_dotenv()
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 import datetime
@@ -59,6 +59,17 @@ if engine_type == "sqlite":
 # Resolve project root (this file → importer → app → src → project_root)
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
 print(f"Project root resolved to: {project_root}")
+
+back_end_root=os.path.abspath(os.path.join(os.path.dirname(__file__)))
+print(f"Back-end root resolved to: {back_end_root}")
+
+template_path = os.path.join(
+    back_end_root,
+    "templates",
+    "Reports.xlsx"
+)
+
+wb = load_workbook(template_path)
 
 # Place DB inside project_root/data
 db_folder = os.path.join(project_root, "data")
@@ -342,7 +353,7 @@ def download_evaluation_report(run_name: str):
         run = db.get_run_by_name(run_name)
         if not run:
             raise HTTPException(status_code=404, detail="Run not found")
-
+        
         details = db.get_all_run_details_by_run_name(run_name)
         plan_name = details[0].plan_name if details else None
         # Cache conversations
@@ -354,13 +365,12 @@ def download_evaluation_report(run_name: str):
                     d.conversation_id
                 )
 
-        wb = Workbook()
+        
 
         # =================================================
         # SHEET 1 : RUN SUMMARY (NO BS)
         # =================================================
-        ws_summary = wb.active
-        ws_summary.title = "Run_Summary"
+        ws_summary = wb["Run_Summary"]
 
         # Collect counts
         testcases = set()
@@ -370,28 +380,21 @@ def download_evaluation_report(run_name: str):
             if conv and getattr(conv, "testcase", None):
                 testcases.add(conv.testcase)
 
-        ws_summary.append(["Run Name", run.run_name])
-        ws_summary.append(["Plan Name", plan_name])
-        ws_summary.append(["Status", run.status])
-        ws_summary.append(["Total Testcases", len(testcases)])
-        ws_summary.append(["Total Metrics", total_metrics])
+        ws_summary["B1"] = run.run_name
+        ws_summary["B2"] = plan_name
+        ws_summary["B3"] = run.status
+        ws_summary["B4"] = len(testcases)
+        ws_summary["B5"] = total_metrics
 
         # =================================================
         # SHEET 2 : EVALUATION DETAILS (TESTCASE + METRIC)
         # =================================================
-        ws_details = wb.create_sheet(title="Evaluation_Details")
+        
 
-        ws_details.append([
-            "Detail ID",
-            "Testcase",
-            "Metric",
-            "Evaluation Score",
-            "Evaluation Reason",
-            "Evaluation Time",
-            "Agent Response",
-            "User Prompt",
-            "System Prompt"
-        ])
+        ws_details = wb["Evaluation_Details"]
+
+        # Start inserting after header row
+        start_row = ws_details.max_row + 1
 
         for d in details:
             conv = conversation_cache.get(d.conversation_id)
@@ -404,7 +407,9 @@ def download_evaluation_report(run_name: str):
                 or getattr(conv, "metric", None)
                 or getattr(conv, "metric_name", None)
             )
+
             testcase_name = getattr(conv, "testcase", None)
+
             if testcase_name not in testcase_prompt_cache:
                 testcase = db.get_testcase_by_name(testcase_name)
 
@@ -418,7 +423,9 @@ def download_evaluation_report(run_name: str):
                         "user_prompt": getattr(testcase.prompt, "user_prompt", None),
                         "system_prompt": getattr(testcase.prompt, "system_prompt", None),
                     }
-            prompts = testcase_prompt_cache[testcase_name]        
+
+            prompts = testcase_prompt_cache[testcase_name]
+
             ws_details.append([
                 d.detail_id,
                 getattr(conv, "testcase", None),
@@ -439,7 +446,7 @@ def download_evaluation_report(run_name: str):
         tmp_file.close()
 
         return FileResponse(
-            path=tmp_file.name,
+            tmp_file.name,
             filename=f"{run_name}_evaluation_report.xlsx",
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
@@ -524,6 +531,7 @@ def start_run(data: NewTestRun, background_tasks: BackgroundTasks):
         metric_name = data.metric 
         domain_name = data.domain if data.domain else None
         lang_name = data.language if data.language else None
+        provided_run_name = data.runName.strip() if data.runName else None
         try:
             max_test_cases = int(data.maxTestCases)
             print(max_test_cases)
@@ -534,7 +542,10 @@ def start_run(data: NewTestRun, background_tasks: BackgroundTasks):
             )
         ## Create a random name for the run and generating run id
 
-        run_name = randomname.generate('v/*','adj/*','n/*','ip/*')
+        if provided_run_name:
+            run_name = provided_run_name
+        else:
+            run_name = randomname.generate('v/*','adj/*','n/*','ip/*')
         start_time = datetime.now().isoformat()
         run = Run(target=target, run_name=run_name, start_ts=start_time)
         run_id = db.add_or_update_testrun(run)
@@ -548,14 +559,36 @@ def start_run(data: NewTestRun, background_tasks: BackgroundTasks):
             return
         print(f"Starting run with Test Plan: {plan_name}")
 
-        if metric_name:
+        if test_case_id:
+            testcases = db.get_testcase_by_id(test_case_id)
+            testcases = [testcases]
+            total_testcases = len(testcases)
+            print(f"Length of testcases: {len(testcases)}")
+            print(type(testcases))
+            
+            run.status = "RUNNING"
+            db.add_or_update_testrun(run=run)
+            
+            
+            background_tasks.add_task(
+                execute_testcases,
+                run_name,
+                run_id,
+                plan_name,
+                target,
+                
+                testcases,
+                run
+            )
+
+        elif metric_name:
             # metric_name = db.get_metric_name(metric_id=metric_id)  
             is_metric_in_plan = db.is_metric_in_testplan(metric_name=metric_name, plan_name=plan_name)  
             if not is_metric_in_plan:
                 return
             testcases = db.get_testcases_by_metric(
                 metric_name=metric_name,
-                n=3,
+                n=max_test_cases,
                 lang_names=lang_name,
                 domain_name=domain_name
             ) 
@@ -651,7 +684,8 @@ def start_run(data: NewTestRun, background_tasks: BackgroundTasks):
                 testcases,
                 run
             )
-
+        print()    
+        print(f"total testcases: {total_testcases}")
         return {
             "status": "success",
             "runId": run_id,
@@ -663,12 +697,24 @@ def start_run(data: NewTestRun, background_tasks: BackgroundTasks):
             
         }
         
-                
-        
     else:
         return("Test Plan ID is mandatory")
 
+@app.post("/continue-run")
+def continue_run(data: ContinueRunRequest):
+    # 1️⃣ Get run by name
+    run = db.get_run_by_name(data.run_name)
 
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    # 2️⃣ Get run details
+    details = db.get_run_details_by_run_id(run.run_id)
+
+    return {
+        "run": run,
+        "details": details
+    }
 
 async def execute_testcases(
     run_name,
@@ -683,8 +729,18 @@ async def execute_testcases(
 
     agent_name = target
     application_name = target
-    application_url = "https://web.whatsapp.com"
-    application_type = "WHATSAPP_WEB"
+    target_obj = db.get_target_by_name(target)
+    application_url = target_obj.target_url
+    APPLICATION_TYPE_MAP = {
+        "WhatsApp": "WHATSAPP_WEB",
+        "WebApp": "WEBAPP",
+        "API": "API"
+    }
+
+    if target_obj.target_type not in APPLICATION_TYPE_MAP:
+        raise ValueError(f"Unsupported target_type: {target_obj.target_type}")
+
+    application_type = APPLICATION_TYPE_MAP[target_obj.target_type]
 
     client = InterfaceManagerClient(
         base_url="http://localhost:8000",
@@ -705,7 +761,7 @@ async def execute_testcases(
     client.apply_server_config()
 
     for index, testcase in enumerate(testcases, start=1):
-        print(f"⚙️ Running testcase: {testcase.name}")
+        # print(f"⚙️ Running testcase: {testcase.name}")
 
         rundetail = RunDetail(
             run_name=run_name,
@@ -809,14 +865,14 @@ async def execute_testcases(
             "runId": run_id,
             "current": index
         })
-    rundetail.status = "COMPLETED"
-    db.add_or_update_testrun_detail(rundetail)
-    run.end_ts = datetime.now().isoformat()
-    run.status = "COMPLETED"
-    db.add_or_update_testrun(run=run)
+        rundetail.status = "COMPLETED"
+        db.add_or_update_testrun_detail(rundetail)
+        run.end_ts = datetime.now().isoformat()
+        run.status = "COMPLETED"
+        db.add_or_update_testrun(run=run)
     
-        # client.close()
-   
+    client.close()
+    
     print(f"✅ Finished testcase: {testcase.name}")
     await ws_manager.send_all({
         "type": "RUN_FINISHED",
