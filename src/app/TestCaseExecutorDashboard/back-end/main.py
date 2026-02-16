@@ -513,14 +513,6 @@ def get_test_run_timeline(run_name: str):
     
     return timeline
 
-@app.get("/get_metrics_by_plan/{plan_name}", response_model=list[FilterResponse])
-def get_metrics_by_plan(plan_name: str):
-    try:
-        metrics = db.get_metrics_by_testplan(plan_name)
-        return [FilterResponse(filter_name=m) for m in metrics]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 @app.post("/start-run")
 def start_run(data: NewTestRun, background_tasks: BackgroundTasks):
     if data.testPlan:
