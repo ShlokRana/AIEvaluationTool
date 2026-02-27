@@ -34,3 +34,5 @@ ollama
 deepeval
 google-genai
 rich
+openai-whisper
+parler-tts
