@@ -85,7 +85,7 @@ class IndianLanguageFluencyScorer(Strategy):
                 case s if s < 0 or s > 1.0:
                     return ""
     
-    def evaluate(self, testcase:TestCase, conversation:Conversation, save_dist_img=True):
+    def evaluate(self, testcase:TestCase, conversation:Conversation, save_dist_img=False):
         score = self.get_score(conversation.agent_response, dflt_vals.type)
         ex_results = self.run_examples()
         final_score = 0.0

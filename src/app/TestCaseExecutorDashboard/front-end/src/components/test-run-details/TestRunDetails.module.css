@@ -1,0 +1,536 @@
+/* ======================
+   CONTAINER
+====================== */
+.container {
+  max-width: 2000px;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 3rem;
+  padding: 0 2rem 4rem;
+  background-color: #f8fafc;
+  min-height: calc(100vh - 70px);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ======================
+   SUMMARY CARD
+====================== */
+.summaryCard {
+  background-color: white;
+  border-radius: 12px;
+  padding: 2rem;
+  margin: 2rem 0 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e2e8f0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 1.5rem;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  color: #1e293b;
+  border-bottom: none;
+  padding: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.titleContainer {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 12px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.planBadge {
+  background: #f0f9ff;
+  color: #0369a1;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 15px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #e0f2fe;
+  white-space: nowrap;
+  margin-left: 8px;
+}
+
+.planBadge i {
+  font-size: 16px;
+  margin-right: 6px;
+}
+
+/* ======================
+   DETAILS GRID
+====================== */
+.detailsGrid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
+  padding-top: 1.5rem;
+  border-top: 1px solid #f1f5f9;
+  width: 100%;
+}
+
+.detailCard {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+  border: 1px solid #e2e8f0;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.detailLabel {
+  font-size: 13px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.detailValue {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 6px 0 0;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+
+/* ======================
+   FILTERS
+====================== */
+.filtersContainer {
+  margin: 2rem 0;
+}
+
+.filtersCard {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e2e8f0;
+  width: 100%;
+}
+
+.filtersTitle {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 1.25rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ======================
+   METRIC ROW HOVER (Timeline Triggered)
+====================== */
+.table tbody tr:global(.metricRowHover) {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3) !important;
+  z-index: 10 !important;
+}
+
+.table tbody tr:global(.metricRowHover) td {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+  font-weight: 600 !important;
+  border-color: #3b82f6 !important;
+}
+
+.table tbody tr:global(.metricRowHover) :global(.planCell) {
+  background-color: transparent !important;
+}
+
+.table tbody tr:global(.metricRowHover) td:nth-child(2) {
+  border-left: 4px solid #3b82f6;
+  padding-left: 12px;
+}
+
+/* ======================
+   PLAN SECTION STYLING
+====================== */
+.planSection {
+  display: flex;
+  margin-bottom: 2rem;
+  position: relative;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.planNameContainer {
+  background: #f8fafc;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1rem 0.5rem;
+  min-width: 50px;
+  width: 50px;
+  position: relative;
+}
+
+.planName {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-height: 100%;
+  font-weight: 600;
+  color: #1e40af;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  text-align: center;
+  padding: 1rem 0;
+}
+
+/* ======================
+   TABLE STYLING
+====================== */
+.contentWrapper {
+  max-width: 1600px;
+  margin: 30px auto 0 auto;
+  padding: 0 20px;
+}
+
+.tableSection {
+  margin: 2rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.tableContainer {
+  overflow-x: auto;
+  background-color: white;
+  padding: 1.25rem;
+  margin: 0;
+  flex: 1;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Custom table styling */
+.table {
+  width: 100%;
+  margin-bottom: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* Gradient header */
+.table thead th {
+  background: linear-gradient(180deg, #f8f9fa 0%, #f1f3f5 100%);
+  color: #2d3748;
+  font-weight: 700;
+  text-align: left;
+  padding: 18px 14px;
+  border: none;
+  font-size: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Table body styling */
+.table tbody td {
+  text-align: left;
+  padding: 16px 14px;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: middle;
+  font-size: 15px;
+  color: #374151;
+}
+
+/* ======================
+   TABLE ROW HOVER EFFECTS (Normal Hover)
+====================== */
+.table tbody tr {
+  transition: all 0.2s ease;
+  cursor: pointer;
+  position: relative;
+  background-color: #fff !important;
+}
+
+/* Normal hover - only when NOT metricRowHover */
+.metricRowHover {
+  background-color: #f8f9fa !important;
+  transform: translateY(-2px) !important;
+  /* box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12) !important; */
+  z-index: 10 !important;
+}
+
+.metricRowHover td {
+  background-color: #f8f9fa !important;
+  font-weight: 600 !important;
+  /* border-color: #e2e8f0 !important; */
+}
+
+.metricRowHover :global(.planCell) {
+  background-color: transparent !important;
+}
+
+.metricRowHover td:nth-child(2) {
+  /* border-left: 4px solid #3b82f6; */
+  padding-left: 12px;
+}
+
+/* Plan name cell hover effect */
+.table tbody tr:not(:global(.metricRowHover)):hover td:first-child {
+  background-color: #f1f5f9 !important;
+  font-weight: 600;
+  border-left: 3px solid #3b82f6;
+  padding-left: 12px;
+}
+
+/* Add a subtle transition for smooth hover effects */
+.table td {
+  transition: all 0.2s ease;
+  vertical-align: middle;
+  padding: 12px 16px !important;
+}
+
+/* Add click feedback */
+.table tbody tr:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Ensure status cell doesn't trigger hover/click */
+.table tbody tr td:last-child {
+  position: relative;
+  z-index: 1;
+}
+
+/* Add hover effect for status cell */
+.table tbody tr td:last-child:hover {
+  background-color: transparent;
+}
+
+/* Status cell styling */
+.statusCell {
+  font-weight: 600;
+  text-transform: capitalize;
+  padding: 8px 12px;
+  border-radius: 20px;
+  display: inline-block;
+  font-size: 14px;
+}
+
+.statusCompleted {
+  background-color: #6c757d;
+  color: #ffffff;
+}
+
+.statusRunning {
+  background-color: #6c757d;
+  color: #ffffff;
+}
+
+/* Remove Bootstrap borders */
+.table-bordered {
+  border: none;
+}
+
+.table-bordered th,
+.table-bordered td {
+  border: none;
+}
+
+.table-bordered thead th,
+.table-bordered tbody + tbody {
+  border: none;
+}
+
+/* ======================
+   EMPTY STATE
+====================== */
+.emptyState {
+  text-align: center;
+  padding: 40px 20px;
+  color: #64748b;
+  font-style: italic;
+}
+
+/* ======================
+   LOADING & ERROR STATES
+====================== */
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #64748b;
+  font-size: 18px;
+}
+
+.error {
+  color: #dc2626;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 20px 0;
+  text-align: center;
+}
+
+/* ======================
+   RESPONSIVE DESIGN
+====================== */
+@media (max-width: 1400px) {
+  .detailsGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 1200px) {
+  .container {
+    padding: 1.5rem;
+  }
+  
+  .summaryCard, 
+  .filtersCard,
+  .tableContainer {
+    padding: 1.25rem;
+  }
+  
+  .detailsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 1024px) {
+  .detailsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .contentWrapper {
+    padding: 0 16px;
+  }
+  
+  .summaryCard, 
+  .filtersCard,
+  .tableContainer {
+    padding: 1.25rem;
+  }
+  
+  .table thead th {
+    padding: 12px 8px;
+    font-size: 12px;
+  }
+  
+  .table tbody td {
+    padding: 12px 8px;
+    font-size: 14px;
+  }
+  
+  .statusCell {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem;
+  }
+  
+  .headerRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  
+  .title {
+    font-size: 1.5rem;
+    width: 100%;
+  }
+  
+  .detailsGrid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .tableContainer {
+    border-radius: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .table {
+    min-width: 600px;
+  }
+  
+  .filtersCard {
+    padding: 1.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 0.75rem;
+  }
+  
+  .summaryCard,
+  .filtersCard {
+    padding: 1rem;
+    margin: 1rem 0;
+  }
+  
+  .title {
+    font-size: 1.35rem;
+  }
+  
+  .planBadge {
+    font-size: 0.875rem;
+    padding: 0.35rem 0.75rem;
+  }
+  
+  .table th,
+  .table td {
+    padding: 12px 12px;
+    font-size: 14px;
+  }
+  
+  .detailCard {
+    padding: 10px;
+  }
+  
+  .detailValue {
+    font-size: 16px;
+  }
+}

@@ -2,6 +2,7 @@ from googleapiclient import discovery
 import os
 import warnings
 from lib.data import TestCase, Conversation
+from lib.strategy.toxicity import Toxicity
 from .logger import get_logger
 from .strategy_base import Strategy
 from .utils_new import FileLoader, OllamaConnect
@@ -16,11 +17,30 @@ class ToxicityDetectionUsingAPI(Strategy):
     def __init__(self, name: str = "detect_toxicity_using_perspective_api", **kwargs) -> None:
         super().__init__(name, kwargs=kwargs)
         self.api_key = os.getenv("PERSPECTIVE_API_KEY")
-        if not self.api_key:
+        if not self.api_key or self.api_key == "":
             logger.warning("PERSPECTIVE_API_KEY is not set in environment.")
+            self._local_model = Toxicity()
+            self._toxicity_fn = self._local_model.toxicity_check
         else:
             logger.info("PERSPECTIVE_API_KEY loaded successfully.")
-            
+            self._toxicity_fn = self.detect_toxicity_using_perspective_api
+    
+    # ------------------------------
+    # Local fallback wrapper
+    # ------------------------------
+    def _local_toxicity_wrapper(self, input_string: str) -> float:
+        """
+        Ensures local evaluator always returns a float between 0 and 1.
+        """
+
+        result = self._toxicity_fn(input_string)
+
+        # Normalize return type
+        if isinstance(result, dict):
+            result = result.get("toxicity", 0.0)
+
+        return round(float(result), 3)
+
     def detect_toxicity_using_perspective_api(self, input_string: str):
         client = discovery.build(
             dflt_vals.service,
@@ -67,7 +87,7 @@ class ToxicityDetectionUsingAPI(Strategy):
         Returns: toxicity_level (float) -  A toxicity score between 0.0 (non-toxic) and 1.0 (highly toxic) as determined by the Perspective API.
         """
 
-        toxicity_level = self.detect_toxicity_using_perspective_api(input_string=conversation.agent_response)
+        toxicity_level = self._toxicity_fn(conversation.agent_response)
         logger.info(f"Toxicity level using Perspective API is: {toxicity_level}")
         return toxicity_level, self.reason_for_score(conversation.agent_response, toxicity_level)
 

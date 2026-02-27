@@ -1,0 +1,160 @@
+.content-wrapper {
+  max-width: 1600px;
+  margin: 30px auto 0 auto;
+  padding: 0 20px;
+}
+
+.header-section {
+  background-color: transparent;
+  padding: 20px 0;
+  margin-bottom: 0;
+}
+
+.header-section {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.table-container {
+  overflow-x: auto;
+  background-color: white;
+  padding: 20px;
+  margin: 0;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin-top: 3rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Custom table styling */
+.table {
+  margin-bottom: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* Gradient header */
+.table thead th {
+  background: linear-gradient(
+  180deg,
+  #f8f9fa 0%,
+  #f1f3f5 100%
+);
+  color: #2d3748;
+  font-weight: 700;
+  text-align: center;
+  padding: 18px 14px;
+  border: none;
+  font-size: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Table body styling */
+.table tbody td {
+  text-align: center;
+  padding: 18px 14px;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: middle;
+  font-size: 18px;
+}
+
+/* Row hover effect */
+
+
+/* Remove Bootstrap borders */
+.table-bordered {
+  border: none;
+}
+
+.table-bordered th,
+.table-bordered td {
+  border: none;
+}
+
+.table-bordered thead th,
+.table-bordered tbody + tbody {
+  border: none;
+}
+
+/* Button styling */
+.view-btn, .report-btn {
+  display: inline-block;
+  padding: 12px 24px;
+  margin: 0 4px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: none;
+  min-width: 80px;
+}
+
+.view-btn:hover, .report-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+}
+
+.report-btn {
+  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+}
+
+.report-btn:hover {
+  background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+  box-shadow: 0 4px 12px rgba(72, 187, 120, 0.4);
+}
+
+.status-cell {
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.status-cell:contains("Completed") {
+  color: #059669;
+}
+
+.status-cell:contains("Running") {
+  color: #dc2626;
+}
+
+.status-cell:contains("Failed") {
+  color: #dc2626;
+}
+
+
+@media (max-width: 1024px) {
+  .content-wrapper {
+    padding: 0 16px;
+  }
+  
+  .table-container {
+    padding: 16px;
+    margin: 0;
+  }
+  
+  .table thead th {
+    padding: 12px 8px;
+    font-size: 12px;
+  }
+  
+  .table tbody td {
+    padding: 12px 8px;
+    font-size: 12px;
+  }
+  
+  .view-btn, .report-btn {
+    padding: 6px 12px;
+    font-size: 11px;
+    min-width: 50px;
+  }
+}
+

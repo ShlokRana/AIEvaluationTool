@@ -1,12 +1,21 @@
 {
     "db": {
-        "engine":"sqlite",
+        "engine": "sqlite",
         "file": "AIEvaluationData.db",
-        "host": "localhost",
-        "port": 3306,
-        "user": "root",
-        "password": "jarvis2025",
-        "database": "AIEvaluationData"
+    },
+    "examples":{
+        "db_1":{
+            "engine":"mariadb",
+            "host": "localhost",
+            "port": 3306,
+            "user": "root",
+            "password": "password",
+            "database": "test"
+        },
+        "db_2":{
+            "engine":"sqlite",
+            "file": "example.db"
+        }
     },
     "target": {
         "application_type": "WHATSAPP_WEB",

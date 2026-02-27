@@ -46,7 +46,8 @@ class BiasDetection(Strategy):
         Run the classifier and return only the probability score.
         Logs the full details for reference.
         """
-        result = self.classifier(response, return_all_scores=True)[0]
+        result = self.classifier(response, return_all_scores=True)[0] 
+        result = [result] if isinstance(result, dict) else result  # Ensure it's a list of dicts
         # Pick top prediction
         top_pred = max(result, key=lambda x: x['score'])
         label = top_pred['label']

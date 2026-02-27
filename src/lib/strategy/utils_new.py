@@ -11,6 +11,17 @@ from ollama import Client, AsyncClient
 from deepeval.models.base_model import DeepEvalBaseLLM
 from typing import Optional, List
 
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+)
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import mm
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_JUSTIFY
+from reportlab.pdfbase import pdfmetrics
+
 logger = get_logger("utils_new")
 
 class FileLoader:
@@ -20,7 +31,12 @@ class FileLoader:
     @staticmethod
     def _load_env_vars(run_file_path:str):
         env_path = os.path.join(os.path.dirname(run_file_path), '.env')
-        load_dotenv(env_path)
+        # check if the .env file exists
+        if not os.path.exists(env_path):
+            logger.error(f"Could not find the .env file at path : {env_path}. Please make sure to create one and add the required environment variables.")
+            exit(1)
+        else:
+            load_dotenv(env_path)
     
     @staticmethod
     def _load_file_content(run_file_path:str, req_folder_path:str = "", file_name:str = "", **kwargs):
@@ -220,15 +236,21 @@ class OllamaConnect:
                     final = {}
                 if(OllamaConnect.has_correct_format(final, fields)):
                     resp_in_format.append(final)
+                else:
+                    logger.error("Response does not contain the required fields or is not in the correct format.")
             tries -= 1
         return resp_in_format
     
     @staticmethod
     def has_correct_format(obj : Optional[dict], fields: List[str]):
-        correct = isinstance(obj, dict) 
-        for fld in fields:
-            correct = correct and fld in fields and isinstance(obj.get(fld), str) 
-        return correct
+        correct = isinstance(obj, dict)
+        distinct_set = set(list(obj.keys())).intersection(set(fields))
+        if len(distinct_set) > 0:
+            for fld in distinct_set:
+                correct = correct and fld in fields and isinstance(obj.get(fld), str) 
+            return correct
+        else:
+            return False
     
     @staticmethod
     def get_reason(agent_response:str, strategy_name:str, score:float, **kwargs):
@@ -237,7 +259,7 @@ class OllamaConnect:
         final_rsn = ""
         if(len(responses) > 0):
             reasons = [r["reason"] for r in responses]
-            if(len(reasons) == 1): return f"Reason : {reasons[0]}" 
+            if(len(reasons) == 1): return f"{reasons[0]}" 
             for i, r in enumerate(reasons):
                 if i == 0:
                     final_rsn += f"Reason {i+1} : {r}"
@@ -246,3 +268,451 @@ class OllamaConnect:
             return final_rsn
         else:
             return "Could not get a proper reasoning for the score."
+        
+    @staticmethod
+    def get_metric_summary(metric_name: str, scores, reasons=None, **kwargs):
+        """
+        Accepts a list of scores (and optional reasons) for one metric
+        and produces a single coherent summary at metric level.
+        """
+
+        # --- Normalize scores ---
+        values = list(scores) if isinstance(scores, (list, tuple)) else [scores]
+
+        avg_score = round(sum(values) / len(values), 3)
+        score_text = f"Average: {avg_score} from {len(values)} samples"
+
+        # --- Prepare reasons block ---
+        reason_text = ""
+        if reasons:
+            items = reasons if isinstance(reasons, (list, tuple)) else [reasons]
+            reason_text = "\n".join(f"- {r}" for r in items if r)
+
+        # --- Build prompt ---
+        prompt = OllamaConnect.dflt_vals.metric_summary_prompt.format(
+            metric=metric_name,
+            scores=score_text,
+            reasons=reason_text,
+            add_info=kwargs.get("add_info", "")
+        )
+
+        # --- Call model ---
+        responses = OllamaConnect.prompt_model(
+            prompt,
+            OllamaConnect.dflt_vals.reqd_flds
+        )
+
+        if not responses:
+            return "Could not generate metric summary."
+
+        summaries = [r["summary"] for r in responses]
+
+        return summaries[0] if len(summaries) == 1 else "\n\n".join(
+            f"Summary {i+1} : {s}" for i, s in enumerate(summaries)
+        )
+
+
+    @staticmethod
+    def get_single_plan_summary(plan_name: str, metrics: dict, **kwargs):
+
+        plan_overview = []
+
+        for metric_name, data in metrics.items():
+
+            if "metric_summary" not in data:
+                continue
+
+            plan_overview.append({
+                "metric": metric_name,
+                "metric_summary": data.get("metric_summary"),
+                "testcase_count": len(data.get("Testcases", {}))
+            })
+
+        prompt = OllamaConnect.dflt_vals.plan_summary_prompt.format(
+            plan=plan_name,
+            overview=json.dumps(plan_overview, indent=2),
+            add_info=kwargs.get("add_info", "")
+        )
+
+        responses = OllamaConnect.prompt_model(
+            prompt,
+            OllamaConnect.dflt_vals.reqd_flds
+        )
+
+        return responses[0]["summary"] if responses else "Could not generate plan summary."
+        
+    @staticmethod
+    def get_run_summary(score_card: dict, **kwargs):
+
+        run_overview = []
+
+        for plan_name, metrics in score_card.items():
+
+            if not isinstance(metrics, dict) or plan_name == "PlanSummary":
+                continue
+
+            # Grab plan summary from any metric node (they all share it)
+            plan_summary = None
+            for data in metrics.values():
+                if "plan_summary" in data:
+                    plan_summary = data["plan_summary"]
+                    break
+
+            if not plan_summary:
+                continue
+
+            run_overview.append({
+                "plan": plan_name,
+                "plan_summary": plan_summary
+            })
+
+        prompt = OllamaConnect.dflt_vals.run_summary_prompt.format(
+            overview=json.dumps(run_overview, indent=2),
+            add_info=kwargs.get("add_info", "")
+        )
+
+        responses = OllamaConnect.prompt_model(
+            prompt,
+            OllamaConnect.dflt_vals.reqd_flds
+        )
+
+        if not responses:
+            return "Could not generate run summary."
+
+        summaries = [r["summary"] for r in responses]
+
+        return summaries[0] if len(summaries) == 1 else "\n\n".join(
+            f"Summary {i+1} : {s}" for i, s in enumerate(summaries)
+        )
+
+
+# The EvaluationReport class is responsible for generating a PDF report of the evaluation results. 
+class EvaluationReport:
+    def __init__(self, title="Conversational AI Evaluation Report",
+                 pagesize=A4, margin_mm=15):
+
+        self.title = title
+        self.pagesize = pagesize
+        self.margin = margin_mm * mm
+        self.styles = getSampleStyleSheet()
+
+        # Section heading
+        self.styles.add(
+            ParagraphStyle(
+                name="SectionTitle",
+                parent=self.styles["Heading2"],
+                fontSize=12,
+                leading=14,
+                spaceAfter=6
+            )
+        )
+
+        # Left aligned labels for key column
+        self.styles.add(
+            ParagraphStyle(
+                name="BodyLabel",
+                parent=self.styles["BodyText"],
+                fontSize=10,
+                leading=12,
+                alignment=0,        # TA_LEFT
+                spaceAfter=2
+            )
+        )
+
+        # Justified body text
+        self.styles.add(
+            ParagraphStyle(
+                name="Body",
+                parent=self.styles["BodyText"],
+                fontSize=10,
+                leading=12,
+                alignment=TA_JUSTIFY,
+                spaceAfter=4
+            )
+        )
+
+    # -----------------------------------------------------
+
+    def _draw_header(self, canvas, doc):
+        canvas.saveState()
+        canvas.setFont("Helvetica-Bold", 14)
+
+        page_width = self.pagesize[0]
+        canvas.drawCentredString(
+            page_width / 2.0,
+            self.pagesize[1] - self.margin + 6 * mm,
+            self.title
+        )
+
+        canvas.restoreState()
+
+    # -----------------------------------------------------
+
+    def section_title(self, text):
+        return Paragraph(text, self.styles["SectionTitle"])
+
+    def body_text(self, text):
+        return Paragraph(text, self.styles["Body"])
+
+    # -----------------------------------------------------
+
+    def key_value_table(self, kv_pairs):
+        left_w = 40 * mm
+        right_w = self.pagesize[0] - 2 * self.margin - left_w
+
+        data = [
+            [
+                Paragraph(f"<b>{k}:</b>", self.styles["BodyLabel"]),
+                Paragraph(str(v), self.styles["Body"])
+            ]
+            for k, v in kv_pairs
+        ]
+
+        t = Table(data, colWidths=[left_w, right_w], hAlign="LEFT")
+
+        t.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+
+        return t
+
+    # -----------------------------------------------------
+
+    def score_table(self, headers, rows, column_widths=None):
+
+        usable_width = self.pagesize[0] - 2 * self.margin
+        font_name = "Helvetica"
+        font_size = 10
+
+        col_count = len(headers)
+
+        # -----------------------------------------------------
+        # CASE 1: Custom column widths provided
+        # -----------------------------------------------------
+        if column_widths:
+
+            if len(column_widths) != col_count:
+                raise ValueError("column_widths must match number of headers")
+
+            colWidths = []
+
+            auto_indices = []
+            fixed_total = 0
+
+            for i, w in enumerate(column_widths):
+                if w is None:
+                    colWidths.append(None)
+                    auto_indices.append(i)
+                else:
+                    colWidths.append(w)
+                    fixed_total += w
+
+            remaining_width = usable_width - fixed_total
+
+            if remaining_width <= 0:
+                raise ValueError("Fixed column widths exceed usable page width")
+
+            # Distribute remaining width equally among auto columns
+            if auto_indices:
+                auto_width = remaining_width / len(auto_indices)
+                for i in auto_indices:
+                    colWidths[i] = auto_width
+
+        # -----------------------------------------------------
+        # CASE 2: Auto-sizing mode
+        # -----------------------------------------------------
+        else:
+
+            data_raw = [headers] + rows
+            max_widths = [0] * col_count
+
+            for row in data_raw:
+                for i, cell in enumerate(row):
+                    text = str(cell)
+                    text_width = pdfmetrics.stringWidth(text, font_name, font_size)
+                    max_widths[i] = max(max_widths[i], text_width)
+
+            padding_buffer = 20
+            colWidths = [w + padding_buffer for w in max_widths]
+
+            total_width = sum(colWidths)
+
+            if total_width > usable_width:
+                scale = usable_width / total_width
+                colWidths = [w * scale for w in colWidths]
+
+            MIN_COL_WIDTH = 40
+            colWidths = [max(w, MIN_COL_WIDTH) for w in colWidths]
+
+            total_width = sum(colWidths)
+            if total_width > usable_width:
+                scale = usable_width / total_width
+                colWidths = [w * scale for w in colWidths]
+
+        # -----------------------------------------------------
+        # Build table
+        # -----------------------------------------------------
+        formatted_data = [
+            [Paragraph(f"<b>{h}</b>", self.styles["Body"]) for h in headers]
+        ]
+
+        for r in rows:
+            formatted_data.append([
+                Paragraph(str(cell), self.styles["Body"])
+                for cell in r
+            ])
+
+        table = Table(
+            formatted_data,
+            colWidths=colWidths,
+            repeatRows=1,
+            hAlign="LEFT",
+            splitByRow=1
+        )
+
+        table.setStyle(TableStyle([
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("ALIGN", (2, 1), (2, -1), "CENTER"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 5),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.whitesmoke),
+            ("WORDWRAP", (0, 0), (-1, -1), "CJK"),
+        ]))
+
+        return table
+
+
+    # -----------------------------------------------------
+
+    def scorecard_to_table(self, score_card):
+        # Count actual plans (exclude PlanSummary meta key if present)
+        plan_names = [p for p in score_card.keys() if p != "PlanSummary"]
+        multiple_plans = len(plan_names) > 1
+
+        # Build headers dynamically
+        headers = [
+            "Plan Name",
+            "Metric Name",
+            "Score (0-1)",
+            "Metric Summary",
+        ]
+
+        if multiple_plans:
+            headers.append("Plan Summary")
+
+        rows = []
+
+        for plan_name in plan_names:
+
+            metrics = score_card[plan_name]
+            first_metric = True
+
+            for metric_name, metric_data in metrics.items():
+
+                metric_score = metric_data.get("metric_score", "")
+                metric_summary = metric_data.get("metric_summary", "")
+                plan_summary = metric_data.get("plan_summary", "")
+
+                row = [
+                    plan_name,
+                    metric_name,
+                    str(metric_score),
+                    metric_summary,
+                ]
+
+                # Only include plan summary column if multiple plans exist
+                if multiple_plans:
+                    row.append(plan_summary if first_metric else "")
+
+                rows.append(row)
+
+                first_metric = False
+
+        return headers, rows
+
+
+    # -----------------------------------------------------
+
+    @classmethod
+    def create_report(
+        cls,
+        target_name: str,
+        run_name: str,
+        timestamp: str,
+        total_testcases: int,
+        target_summary: str,
+        score_card: dict,
+        plan_summary: str = None,
+        out_path: str = None,
+        column_widths: list = None 
+    ):
+
+        inst = cls()
+
+        filename = out_path or f"AI_Evaluation_Report_{target_name}.pdf"
+
+        doc = SimpleDocTemplate(
+            filename,
+            pagesize=inst.pagesize,
+            leftMargin=inst.margin,
+            rightMargin=inst.margin,
+            topMargin=inst.margin,
+            bottomMargin=inst.margin,
+        )
+
+        story = []
+
+        story.append(inst.section_title("Experiment Overview"))
+
+        kv = [
+            ("Target Name", target_name),
+            ("Run Name", run_name),
+            ("Timestamp", timestamp),
+            ("Total Test Cases", str(total_testcases)),
+        ]
+
+        story.append(inst.key_value_table(kv))
+        story.append(Spacer(1, 8))
+
+        has_run_summary = any(
+            metric.get("run_summary")
+            for plan in score_card.values()
+            for metric in plan.values()
+            if isinstance(metric, dict)
+        )
+
+        section_title = (
+            "Target Evaluation Run Summary"
+            if has_run_summary
+            else "Target Evaluation Plan Summary"
+        )
+
+        story.append(inst.section_title(section_title))
+
+        if has_run_summary:
+            story.append(inst.body_text(target_summary))
+        elif plan_summary:
+            story.append(inst.body_text(plan_summary))
+        else:
+            story.append(inst.body_text("No summary available."))
+
+        story.append(Spacer(1, 8))
+
+        story.append(inst.section_title("Scores Table"))
+
+        headers, rows = inst.scorecard_to_table(score_card)
+        story.append(inst.score_table(headers, rows, column_widths=column_widths))
+
+        doc.build(
+            story,
+            onFirstPage=inst._draw_header,
+            onLaterPages=inst._draw_header
+        )
+
+        return filename

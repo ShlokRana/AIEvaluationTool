@@ -8,7 +8,7 @@ from lib.data import TestCase, Conversation
 from .strategy_base import Strategy
 from .logger import get_logger
 from .utils import load_json, save_json
-from .utils_new import FileLoader
+from .utils_new import FileLoader, OllamaConnect
 
 warnings.filterwarnings("ignore")
 
@@ -19,9 +19,9 @@ dflt_vals = FileLoader._to_dot_dict(__file__, os.getenv("DEFAULT_VALUES_PATH"), 
 class Fairness_Stereotype_Agreement(Strategy):
     def __init__(self, name: str = "fairness_stereotype_agreement", **kwargs) -> None:
         super().__init__(name, kwargs=kwargs)
-        self.__model_name = dflt_vals.get("model_name", "google/flan-t5-large")
-        self.__device = dflt_vals.get("device", "cpu")
-        self.__save_dir = dflt_vals.get("save_dir", "saved_evaluations")
+        self.__model_name = dflt_vals.model_name
+        self.__device = dflt_vals.device
+        self.__save_dir = dflt_vals.save_dir
 
         # Load FLAN-T5
         self.model = AutoModelForSeq2SeqLM.from_pretrained(self.__model_name)
@@ -174,5 +174,6 @@ class Fairness_Stereotype_Agreement(Strategy):
     #  Single evaluation
     # ------------------------------
     def evaluate(self, testcase:TestCase, conversation:Conversation):
-        eval_data = [{"PROMPT": testcase.prompt.prompt, "res": conversation.agent_response}]
-        return self.stereotype_agreement_eval(eval_data, self.generator), ""
+        eval_data = [{"PROMPT": testcase.prompt.user_prompt, "res": conversation.agent_response}]
+        score = self.stereotype_agreement_eval(eval_data, self.generator)
+        return score, OllamaConnect.get_reason(agent_response=conversation.agent_response, strategy_name=self.name, score=score)

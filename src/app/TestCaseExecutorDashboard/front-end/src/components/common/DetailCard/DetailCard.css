@@ -1,0 +1,47 @@
+.detail-card {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem;
+  min-width: 150px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.2s, transform 0.1s;
+  
+}
+
+.detail-card:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+.detail-label {
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+  display: flex;
+  align-items: center;
+}
+
+.detail-label i {
+  font-size: 1rem;
+}
+
+.detail-value {
+  font-size: 0.95rem;
+  color: #333;
+}
+
+/* Status colors */
+.status-completed {
+  color: #28a745; /* green */
+  font-weight: 600;
+}
+
+.status-running {
+  color: #0d6efd; /* blue */
+  font-weight: 600;
+}
+
+.status-failed {
+  color: #dc3545; /* red */
+  font-weight: 600;
+}

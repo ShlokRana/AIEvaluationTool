@@ -1,0 +1,95 @@
+from pydantic import BaseModel
+from typing import Optional, List
+
+class TestCaseIds(BaseModel):
+    testcase_id: Optional[int] = None
+    testcase_name: Optional[str] = None
+    strategy_name: Optional[str] = None
+    llm_judge_prompt: Optional[str] = None
+    domain_name: Optional[str] = None
+    user_prompt: Optional[str] = None
+    system_prompt: Optional[str] = None
+    response_text: Optional[str] = None
+  
+class TestCaseId(BaseModel):
+    testcase_name: Optional[str] = None
+    strategy_name: Optional[str] = None
+    llm_judge_prompt: Optional[str] = None
+    user_prompt: Optional[str] = None
+    system_prompt: Optional[str] = None
+    response_text: Optional[str] = None
+
+
+class TestCaseUpdate(BaseModel):
+    testcase_id : Optional[int] = None
+    testcase_name: Optional[str] = None
+    strategy_id: Optional[int] = None
+    strategy_name: Optional[str] = None
+    llm_judge_prompt_id: Optional[int] = None
+    llm_judge_prompt: Optional[str] = None
+    domain_name: Optional[str] = None
+    prompt_id: Optional[int] = None
+    user_prompt: Optional[str] = None
+    system_prompt: Optional[str] = None
+    response_id: Optional[int] = None
+    response_text: Optional[str] = None
+    
+class TestCaseCreate(BaseModel):
+    testcase_name: str
+    strategy_name: str
+    llm_judge_prompt: Optional[str] = None
+    user_prompt: str
+    system_prompt: Optional[str] = None
+    response_text: Optional[str] = None
+
+
+class TestCaseListResponse(BaseModel):
+    testcase_id: int
+    testcase_name: str
+    user_prompt: Optional[str] = None
+    system_prompt: Optional[str] = None
+    response_text: Optional[str] = None
+    strategy_name: Optional[str] = None
+    llm_judge_prompt: Optional[str] = None
+    domain_name: Optional[str] = None
+    lang_name: Optional[str] = None
+    metric_name: str  # Keep for backward compatibility (comma-separated string)
+    metric_name_list: List[str]  # New field for list of metric names
+
+
+class TestCaseDetailResponse(TestCaseListResponse):
+    strategy_id: Optional[int] = None
+    prompt_id: Optional[int] = None
+    response_id: Optional[int] = None
+    llm_judge_prompt_id: Optional[int] = None
+    domain_id: Optional[int] = None
+    #domain_name: Optional[str] = None
+    
+
+
+class TestCaseCreateV2(BaseModel):
+    testcase_name: str
+    user_prompt: str
+    system_prompt: Optional[str] = None
+    language_name: str
+    domain_name: str
+    response_text: Optional[str] = None
+    response_type: Optional[str] = None
+    response_lang: Optional[str] = None
+    strategy_name: str
+    llm_judge_prompt: Optional[str] = None
+    metric_name: Optional[str] = None  # Deprecated, use metric_name_list instead
+    metric_name_list: List[str]  # List of metric names
+    notes: Optional[str] = None
+
+
+class TestCaseUpdateV2(BaseModel):
+    testcase_name: Optional[str] = None
+    strategy_name: Optional[str] = None
+    metric_name: Optional[str] = None  # Deprecated, use metric_name_list instead
+    metric_name_list: Optional[List[str]] = None  # List of metric names
+    user_prompt: Optional[str] = None
+    system_prompt: Optional[str] = None
+    response_text: Optional[str] = None
+    llm_judge_prompt: Optional[str] = None
+    notes: Optional[str] = None

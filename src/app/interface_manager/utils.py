@@ -23,9 +23,11 @@ import traceback
 
 from logger import get_logger
 
+def load_json(file_path):
+    with open(file_path, 'r', encoding='utf-8') as f:
+        return json.load(f)
 
 logger = get_logger("interface_manager")
-
 
 # --------------------------------------------------------------------
 # Driver Management
@@ -54,12 +56,18 @@ class DriverManager:
         opts = Options()
         opts.add_argument("--no-sandbox")
         opts.add_argument("--start-maximized")
+        mode = load_json('config.json').get('headless', 'False')
+        # to turn off headless mode - remove the below line or comment it out.
+        if mode == "True":
+            opts.add_argument("--headless")
         opts.add_argument(f"user-data-dir={self.profile_folder_path}")
         opts.add_experimental_option("excludeSwitches", ["enable-logging"])
 
         try:
-            service = Service(ChromeDriverManager().install())
-            self.driver = webdriver.Chrome(service=service, options=opts)
+            # service = Service(ChromeDriverManager().install())
+            # self.driver = webdriver.Chrome(service=service, options=opts)
+            # @bugfix: Use the below line to load driver faster -- Balayogi 12.01.2026
+            self.driver = webdriver.Chrome(options=opts)
             self.driver.get(url)
             logger.info(f"Driver ready for {app_name}")
             return self.driver
@@ -75,7 +83,7 @@ class DriverManager:
             return True
         except Exception:
             return False
-
+ 
     def close_chrome_with_profile(self) -> bool:
         """Kill any Chrome process using this profile."""
         closed_any = False

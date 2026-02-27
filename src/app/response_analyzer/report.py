@@ -15,13 +15,15 @@ sys.path.append(os.path.join(os.path.dirname(__file__) + '/../../'))  # Adjust t
 
 from lib.orm.DB import DB
 from lib.utils import get_logger, get_logger_verbosity
+from lib.strategy.utils_new import OllamaConnect
+from lib.strategy.utils_new import EvaluationReport
 
 def main():
     # setup up logging
     logger = get_logger(__name__)
 
     parser = argparse.ArgumentParser(description="AI Evaluation Tool :: Response Analysis Report Generator")
-    parser.add_argument("--config", dest='config', default="config.json", help="Path to the config file")
+    parser.add_argument("--config", "-c", dest='config', default="config.json", help="Path to the config file")
     parser.add_argument("--get-config-template", "-T", dest="get_config_template", action="store_true", help="Flag to get the configuration file template")
     parser.add_argument("--verbosity", "-v", dest="verbosity", type=int, choices=[0,1,2,3,4,5], help="Enable verbose output", default=5)
     parser.add_argument("--get-runs", "-N", dest="get_runs", action="store_true", help="Get all test runs")
@@ -69,6 +71,9 @@ def main():
     
     # setting up the database connection
     # db_url = f"mariadb+mariadbconnector://{config['database']['user']}:{config['database']['password']}@{config['database']['host']}:{config['database']['port']}/{config['database']['database']}"
+
+    # set the default value of project root to current directory, we will adjust it based on the location of this file.
+    project_root = "./"
 
     # setting up the database connection
     if config["database"]["engine"] == "sqlite":
@@ -152,26 +157,174 @@ def main():
             score_card[detail.plan_name][detail.metric_name] = {"Testcases":{}}
 
         # capture the score computed for the testcase.
-        score_card[detail.plan_name][detail.metric_name]["Testcases"][detail.testcase_name] = conversation.evaluation_score
+        score_card[detail.plan_name][detail.metric_name]["Testcases"][
+            detail.testcase_name
+        ] = conversation.evaluation_score
 
+        score_card[detail.plan_name][detail.metric_name].setdefault(
+            "Evaluation_Reason", {}
+        )[detail.testcase_name] = conversation.evaluation_reason
+
+    # ------------------------------------------------------------
+    # Determine plan context
+    # ------------------------------------------------------------
+    real_plans = [p for p in score_card if p != "PlanSummary"]
+    multi_plan = len(real_plans) > 1
+
+
+    # ------------------------------------------------------------
+    # FIRST PASS: Metric-level summaries
+    # ------------------------------------------------------------
+    for plan_name, metrics in score_card.items():
+        if plan_name == "PlanSummary":
+            continue
+
+        for metric_name, metric_data in metrics.items():
+
+            scores = list(metric_data.get("Testcases", {}).values())
+            reasons = list(metric_data.get("Evaluation_Reason", {}).values())
+
+            if not scores:
+                continue
+
+            metric_score = round(sum(scores) / len(scores), 3)
+
+            metric_summary = OllamaConnect.get_metric_summary(
+                metric_name,
+                scores=scores,
+                reasons=reasons
+            )
+
+            metric_data.update({
+                "metric_summary": metric_summary,
+                "metric_score": metric_score
+            })
+
+
+    # ------------------------------------------------------------
+    # SECOND PASS: Plan-level summaries
+    # ------------------------------------------------------------
+
+    # initialize the plan_summary for each plan, we will update it in place in the score_card
+    plan_summary = ""
+    for plan_name, metrics in score_card.items():
+        if plan_name == "PlanSummary":
+            continue
+
+        plan_summary = OllamaConnect.get_single_plan_summary(plan_name, metrics)
+
+        for metric_data in metrics.values():
+            metric_data["plan_summary"] = plan_summary
+
+
+    # ------------------------------------------------------------
+    # THIRD PASS: Run-level summary (after plans exist)
+    # ------------------------------------------------------------
+    run_summary = OllamaConnect.get_run_summary(score_card) if multi_plan else ""
+
+    for plan_name, metrics in score_card.items():
+        if plan_name == "PlanSummary":
+            continue
+
+        for metric_data in metrics.values():
+            metric_data["run_summary"] = run_summary
+
+
+    # ------------------------------------------------------------
+    # TABLE RENDERING
+    # ------------------------------------------------------------
     table = Table(title=f"Response Analysis Report for Run '{run.run_name}'")
     table.add_column("Plan Name", style="cyan", no_wrap=True)
     table.add_column("Metric Name", style="magenta")
     table.add_column("Score (0-1)", style="green")
-    
-    # iterate through the dictionary to create score summaries.
-    for plan in score_card.keys():
-        for metric in score_card[plan].keys():
-            scores = list(score_card[plan][metric]["Testcases"].values())
-            avg_score = None
-            if scores:
-                avg_score = round(sum(scores) / len(scores), 2)
-                
-            score_card[plan][metric]["Average"] = avg_score
-            table.add_row(plan, metric, str(avg_score) if avg_score != None else "N/A")
+    table.add_column("Metric Summary", style="blue")
+    table.add_column("Plan Summary", style="yellow")
+
+    if multi_plan:
+        table.add_column("Run Summary", style="blue")
+
+    run_written = False
+
+    for plan_name, metrics in score_card.items():
+        if plan_name == "PlanSummary":
+            continue
+
+        plan_written = False
+
+        for metric_name, metric_data in metrics.items():
+
+            if "metric_summary" not in metric_data:
+                continue
+
+            row = [
+                plan_name,
+                metric_name,
+                str(metric_data["metric_score"]),
+                metric_data["metric_summary"],
+                metric_data["plan_summary"] if not plan_written else ""
+            ]
+
+            if multi_plan:
+                row.append(metric_data["run_summary"] if not run_written else "")
+
+            table.add_row(*row)
+
+            plan_written = True
+            run_written = True
+
 
     print(json.dumps(score_card, indent=4))
     Console().print(table)
 
+    reports_folder = os.path.join(project_root, "reports")
+    os.makedirs(reports_folder, exist_ok=True)
+
+    run = db.get_run_by_name(run_name=args.run_name)
+    if not run:
+        logger.error(f"Run with name '{args.run_name}' not found.")
+        return
+    
+    target_name = getattr(run, "target")
+    run_name = getattr(run, "run_name")
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Also save the scrore_card as a JSON for reference.
+    json_path = os.path.join(reports_folder, f"AI_Evaluation_Report_{target_name}_{run_name}.json")
+    with open(json_path, "w") as json_file:
+        json.dump(score_card, json_file, indent=4)
+
+    total_testcases = sum(
+        len(m.get("Testcases", {}))
+        for metrics in score_card.values()
+        for m in metrics.values()
+    )
+
+    # ------------------------------------------------------------
+    # PDF generation
+    # ------------------------------------------------------------
+
+    filename = EvaluationReport.create_report(
+        target_name=target_name,
+        run_name=run_name,
+        timestamp=timestamp,
+        total_testcases=total_testcases,
+        target_summary=run_summary,
+        plan_summary=plan_summary,
+        score_card=score_card,
+        out_path=os.path.join(
+            reports_folder,
+            f"AI_Evaluation_Report_{target_name}_{run_name}.pdf"
+        ),
+        column_widths=[100, 80, 40, None, None] if multi_plan else [100, 80, 40, None]
+    )
+
+    logger.info(
+        f"PDF Report generated for target: '{target_name}', "
+        f"run: '{run_name}', timestamp: '{timestamp}' "
+        f"with total test cases: {total_testcases}"
+    )
+
+    logger.info(f"Report saved to: {filename}")
+    
 if __name__ == "__main__":
     main()

@@ -38,7 +38,7 @@ class UptimeCalculation(Strategy):
             if a == "None":
                 break
         if len(z) == int(self.__threshold/10):
-            return 1, ""
+            return 1,  f"The uptime of the application is {z[-1]} seconds, which is above the threshold of {self.__threshold} seconds."
         else:
             logger.error("The application broke or uptime cannot be determined.")
-            return 0, ""
+            return 0, "The application broke or uptime cannot be determined."

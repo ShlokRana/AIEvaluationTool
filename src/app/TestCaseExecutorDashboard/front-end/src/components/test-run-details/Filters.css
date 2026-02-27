@@ -1,0 +1,56 @@
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: flex-start;
+  margin-bottom: 20px;
+  max-width: 100%;
+  padding: 0 1rem;
+  box-sizing: border-box;
+}
+
+.filters .filter {
+  flex: 1 1 12rem;  /* flex-grow, flex-shrink, base width */
+  min-width: 120px; /* smaller min-width */
+  max-width: 180px; /* smaller max-width */
+  margin-bottom: 0.5rem;
+}
+
+
+/* Tablets */
+@media screen and (max-width: 768px) {
+  .filters {
+    gap: 0.5rem;
+    justify-content: flex-start; /* keep row layout */
+  }
+
+  .filters .filter {
+    flex: 1 1 calc(33% - 0.5rem); /* 3 filters per row */
+    min-width: 100px;
+    max-width: 150px;
+  }
+
+  .filters select {
+    font-size: 0.9rem;
+    padding: 0.6rem 0.8rem;
+  }
+}
+
+/* Small phones */
+@media screen and (max-width: 480px) {
+  .filters {
+    gap: 0.4rem;
+    justify-content: flex-start;
+  }
+
+  .filters .filter {
+    flex: 1 1 calc(50% - 0.4rem); /* 2 filters per row */
+    min-width: 90px;
+    max-width: 120px;
+  }
+
+  .filters select {
+    font-size: 0.85rem;
+    padding: 0.5rem 0.6rem;
+  }
+}

@@ -22,6 +22,15 @@ from lib.orm import DB  # Import the DB class from the ORM module
 from lib.data import Target, Run, RunDetail, Conversation
 from lib.utils import get_logger, get_logger_verbosity
 
+def is_error_response(response):
+    error_indicators = [
+        "chat not found",
+        "[error: max retries exceeded]",
+        "[error: connection refused]",
+        "no response received"
+    ]
+    return len(response) == 0 or any(indicator in response[0]['response'].lower() for indicator in error_indicators)
+
 def main():
     """ Main function to handle command-line arguments and execute test cases.
     This function initializes the argument parser, processes the command-line arguments,
@@ -52,7 +61,7 @@ def main():
     parser.add_argument("--get-testcases", "-C", dest="get_testcases", action="store_true", help="Get the test cases for a specific test plan or all test cases if no plan ID is provided")
     parser.add_argument("--get-targets", "-G", dest="get_targets", action="store_true", help="Get all target applications")
     parser.add_argument("--get-runs", "-N", dest="get_runs", action="store_true", help="Get all test runs")
-    parser.add_argument("--testplan-id", "-p", dest="plan_id", type=int, help="ID of the test plan to execute", required=True)
+    parser.add_argument("--testplan-id", "-p", dest="plan_id", type=int, help="ID of the test plan to execute")
     parser.add_argument("--testcase-id", "-t", dest="testcase_id", type=int, help="ID of the specific test case to execute")
     parser.add_argument("--metric-id", "-m", dest="metric_id", type=int, help="ID of the evaluation metric to use")
     parser.add_argument("--max-testcases", "-n", dest="max_testcases", type=int, default=10, help="Maximum number of test cases to execute (default: 10)")
@@ -327,7 +336,10 @@ def main():
         # using an existing "incomplete run" if the run name is provided
         if args.run_name is None:
             # generate a random run name if not provided
-            run_name = randomname.generate('v/*','adj/*','n/*','ip/*')
+            # run_name = randomname.generate('v/*','adj/*','n/*','ip/*')
+            # The above pattern is not working as expected in Test Execution WebUI redirect, so using a simpler pattern for now. 
+            # We can enhance it later if needed.
+            run_name = randomname.generate('v-*', 'adj-*', 'n-*', 'ip-*')
             logger.debug(f"Run name not provided, creating a new Run \"{run_name}\"")
             # Create a new run entry in the database
             start_time = datetime.now().isoformat()
@@ -439,7 +451,7 @@ def main():
 
                         # Check if the response is empty or indicates a chat not found
                         # Here, we will leave the Conversation entry dangling in the DB to indicate the the conversation was not successful.
-                        if len(agent_response) == 0 or agent_response[0]['response'] == "Chat not found":
+                        if is_error_response(agent_response):
                             logger.error(f"No response received from the agent for test case {testcase.testcase_id}.")
                             rundetail.status = "FAILED"
                             db.add_or_update_testrun_detail(rundetail)
@@ -553,7 +565,7 @@ def main():
 
                         # Check if the response is empty or indicates a chat not found
                         # Here, we will leave the Conversation entry dangling in the DB to indicate the the conversation was not successful.
-                        if len(agent_response) == 0 or agent_response[0]['response'] == "Chat not found":
+                        if is_error_response(agent_response):
                             logger.error(f"No response received from the agent for test case {testcase.testcase_id}.")
                             rundetail.status = "FAILED"
                             db.add_or_update_testrun_detail(rundetail)
@@ -644,12 +656,13 @@ def main():
                         conv.prompt_ts = datetime.now().isoformat()
                         db.add_or_update_conversation(conversation=conv)
 
+                        # send the prompt to the agent via the interface manager client
                         response_from_agent = client.chat(chat_id = testcase.testcase_id, prompt_list=[message_to_agent])
                         agent_response = response_from_agent.json().get("response", "")
 
                         # Check if the response is empty or indicates a chat not found
                         # Here, we will leave the Conversation entry dangling in the DB to indicate the the conversation was not successful.
-                        if len(agent_response) == 0 or agent_response[0]['response'] == "Chat not found":
+                        if is_error_response(agent_response):
                             logger.error(f"No response received from the agent for test case {testcase.testcase_id}.")
                             rundetail.status = "FAILED"
                             db.add_or_update_testrun_detail(rundetail)

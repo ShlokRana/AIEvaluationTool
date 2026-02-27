@@ -22,7 +22,7 @@ def main():
     logger = get_logger(__name__)
 
     parser = argparse.ArgumentParser(description="AI Evaluation Tool :: Response Analyzer")
-    parser.add_argument("--config", dest='config', default="config.json", help="Path to the config file")
+    parser.add_argument("--config", "-c", dest='config', default="config.json", help="Path to the config file")
     parser.add_argument("--get-config-template", "-T", dest="get_config_template", action="store_true", help="Flag to get the configuration file template")
     parser.add_argument("--verbosity", "-v", dest="verbosity", type=int, choices=[0,1,2,3,4,5], help="Enable verbose output", default=5)
     parser.add_argument("--run-name", "-r", dest="run_name", type=str, help="Name of the run to evaluate")
