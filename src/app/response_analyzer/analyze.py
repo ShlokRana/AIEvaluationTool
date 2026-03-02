@@ -16,6 +16,8 @@ from lib.orm.DB import DB
 from lib.utils import get_logger, get_logger_verbosity
 # from lib.strategy.strategy_implementor import StrategyImplementor
 from lib.strategy.strategy_implementor import StrategyImplementor
+from lib.strategy.utils_new import OllamaConnect
+
 
 def main():
     # setup up logging
@@ -29,6 +31,7 @@ def main():
     parser.add_argument("--force", "-f", dest="force", default=False, action="store_true", help="Force evaluation of already evaluated runs")
     parser.add_argument("--detail-ids", "-di", dest="detail_ids", type=str, help="Comma-separated run detail IDs to re-analyze (example: 101,104,119). If omitted, all details in the run are analyzed.")
     parser.add_argument("--retry-failed", "-rf", dest="retry_failed", action="store_true", help="Re-evaluate only conversations where evaluation_reason is empty.")
+    parser.add_argument("--language", "-l", dest="language", type=str, help="Specify which language to generate the reasoning in.")
 
     args = parser.parse_args()
 
@@ -249,6 +252,11 @@ def main():
             #                          agent_responses=[conversation.agent_response], 
             #                          system_prompts=[testcase.prompt.system_prompt] if testcase.prompt.system_prompt else [None],
             #                          judge_prompts=[testcase.judge_prompt.prompt] if testcase.judge_prompt else [None])
+
+            if(args.language is not None):
+                translation = OllamaConnect.translate(reason, language=args.language)
+                if translation != "":
+                    reason = translation
 
             logger.debug(f"Evaluated score for conversation ID {conversation.conversation_id} in run '{run.run_name}' and Testcase '{detail.testcase_name}': {score}")
             # now, let's update the scores for each conversation
