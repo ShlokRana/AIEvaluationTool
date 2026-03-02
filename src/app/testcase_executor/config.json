@@ -1,7 +1,7 @@
 {
     "db": {
         "engine": "sqlite",
-        "file": "AIEvaluationData.db",
+        "file": "AIEvaluationData.db"
     },
     "examples":{
         "db_1":{
