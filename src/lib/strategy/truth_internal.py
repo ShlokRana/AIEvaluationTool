@@ -8,6 +8,7 @@ from .logger import get_logger
 from .utils_new import FileLoader, OllamaConnect
 import requests
 import json
+import time
 
 warnings.filterwarnings("ignore")
 
@@ -100,9 +101,19 @@ class Truthfulness_Internal(Strategy):
             "prompt": prompt,
             "stream": False
         }
-        res = requests.post(url, json=payload, timeout=60)
-        res.raise_for_status()
-        return res.json().get("response", "").strip()
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            try:
+                res = requests.post(url, json=payload, timeout=45)
+                res.raise_for_status()
+                return res.json().get("response", "").strip()
+            except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as exc:
+                if attempt == max_retries:
+                    raise
+                logger.warning(
+                    f"Ollama request failed ({attempt}/{max_retries}) due to transient error: {exc}. Retrying..."
+                )
+                time.sleep(attempt)
 
     def complete_sentence(self, user_prompt: str, answer: str) -> str:
         """

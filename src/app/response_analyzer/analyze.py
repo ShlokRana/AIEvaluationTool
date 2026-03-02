@@ -27,6 +27,8 @@ def main():
     parser.add_argument("--verbosity", "-v", dest="verbosity", type=int, choices=[0,1,2,3,4,5], help="Enable verbose output", default=5)
     parser.add_argument("--run-name", "-r", dest="run_name", type=str, help="Name of the run to evaluate")
     parser.add_argument("--force", "-f", dest="force", default=False, action="store_true", help="Force evaluation of already evaluated runs")
+    parser.add_argument("--detail-ids", "-di", dest="detail_ids", type=str, help="Comma-separated run detail IDs to re-analyze (example: 101,104,119). If omitted, all details in the run are analyzed.")
+    parser.add_argument("--retry-failed", "-rf", dest="retry_failed", action="store_true", help="Re-evaluate only conversations where evaluation_reason is empty.")
 
     args = parser.parse_args()
 
@@ -119,6 +121,62 @@ def main():
     if not run_details:
         logger.error(f"No run details found for run '{args.run_name}'.")
         return
+
+    selected_detail_ids = None
+    if args.detail_ids:
+        try:
+            selected_detail_ids = {
+                int(raw.strip()) for raw in args.detail_ids.split(",") if raw.strip()
+            }
+        except ValueError:
+            logger.error("Invalid --detail-ids value. Please provide a comma-separated list of integers.")
+            return
+
+        if not selected_detail_ids:
+            logger.error("No valid detail IDs were supplied in --detail-ids.")
+            return
+
+        run_detail_ids = {detail.detail_id for detail in run_details}
+        unknown_ids = sorted(selected_detail_ids - run_detail_ids)
+        if unknown_ids:
+            logger.warning(
+                f"These detail IDs are not part of run '{run.run_name}' and will be ignored: {unknown_ids}"
+            )
+
+        run_details = [detail for detail in run_details if detail.detail_id in selected_detail_ids]
+        if not run_details:
+            logger.error(
+                f"None of the requested detail IDs belong to run '{run.run_name}'. Nothing to analyze."
+            )
+            return
+
+        logger.info(f"Analyzing selected run details only: {[detail.detail_id for detail in run_details]}")
+
+    if args.retry_failed:
+        filtered_run_details = []
+        skipped_detail_ids = []
+
+        for detail in run_details:
+            conversation = db.get_conversation_by_id(detail.conversation_id)
+            if not conversation:
+                logger.error(f"Conversation with ID '{detail.conversation_id}' not found for run '{run.run_name}'.")
+                continue
+
+            reason = conversation.evaluation_reason or ""
+            if reason.strip() == "":
+                filtered_run_details.append(detail)
+            else:
+                skipped_detail_ids.append(detail.detail_id)
+
+        logger.info(f"--retry-failed enabled: selected {len(filtered_run_details)} of {len(run_details)} run details with empty evaluation_reason.")
+        
+        if skipped_detail_ids:
+            logger.debug(f"Skipped run detail IDs with non-empty evaluation_reason: {skipped_detail_ids}")
+
+        run_details = filtered_run_details
+        if not run_details:
+            logger.warning(f"No run details with empty evaluation_reason found for run '{run.run_name}'. Nothing to analyze.")
+            return
     
     print(run_details)
     # let's group the all the run_details by strategy for computational convenience.

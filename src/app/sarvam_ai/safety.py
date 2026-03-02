@@ -54,7 +54,7 @@ class ShieldGemmaSafety:
     def __init__(self, model_name="google/shieldgemma-2b", metric="misuse", loglevel=logging.INFO):
         self.logger = get_logger("shieldgemma_safety", loglevel)
         self.model_name = model_name
-        self.metric = metric
+        self.metric = metric.lower()
         self.prompt = ""
         self.device = "cpu"
         self.tokenizer = None

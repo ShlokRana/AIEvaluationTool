@@ -53,7 +53,7 @@ class LLMJudgeStrategy(Strategy):
         eval_score = np.mean([metric.measure(to_evaluate) for metric in self.metrics])
         final_score = eval_score if self.eval_type == "positive" else (1 - eval_score)
         logger.info(f"Average score based on {len(self.models)} judge models : {final_score}, Reasons: {[model.score_reason for model in self.models]}")
-        return final_score, "\n\n".join([f"Reason {i} : {model.score_reason['Reason']}" for i, model in enumerate(self.models)])
+        return final_score, "\n\n".join([f"{i+1}. {model.score_reason['Reason']} - {model.model_name}" if len(self.models) > 1 else f"{model.score_reason['Reason']}" for i, model in enumerate(self.models)])
 
 #/usr/share/ollama/.ollama/models/manifests
     

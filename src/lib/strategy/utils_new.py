@@ -257,43 +257,75 @@ class OllamaConnect:
         prompt = OllamaConnect.dflt_vals.reason_prompt.format(input_sent=agent_response, metric=strategy_name, score=score, add_info=kwargs.get("add_info", ""))
         responses = OllamaConnect.prompt_model(prompt, OllamaConnect.dflt_vals.reqd_flds)
         final_rsn = ""
-        if(len(responses) > 0):
-            reasons = [r["reason"] for r in responses]
-            if(len(reasons) == 1): return f"{reasons[0]}" 
-            for i, r in enumerate(reasons):
-                if i == 0:
-                    final_rsn += f"Reason {i+1} : {r}"
-                else:
-                    final_rsn += f"\n\n Reason {i+1} : {r}"
-            return final_rsn
-        else:
+        try:
+            if(0 < len(responses) < 2):
+                return f"{responses[0]['reason']}"
+            elif(len(responses) > 1):
+                reasons = [r["reason"] for r in responses]
+                for i, r in enumerate(reasons):
+                    if i == 0:
+                        final_rsn += f"{i+1}. {r}"
+                    else:
+                        final_rsn += f"\n {i+1}. {r}"
+                return final_rsn
+            else:
+                return "Could not get a proper reasoning for the score."
+        except Exception as e:
+            logger.error(f"Error while getting reason for the score : {e}")
             return "Could not get a proper reasoning for the score."
         
     @staticmethod
-    def get_metric_summary(metric_name: str, scores, reasons=None, **kwargs):
+    def get_metric_summary(
+        metric_name: str,
+        scores,
+        reasons=None,
+        language: str = "English",
+        tone: str | None = None,
+        audience: str | None = None,
+        extra_context: str | None = None
+    ):
         """
-        Accepts a list of scores (and optional reasons) for one metric
-        and produces a single coherent summary at metric level.
+        Accepts scores (single or iterable) and optional reasons
+        and produces a coherent metric-level summary.
         """
 
         # --- Normalize scores ---
         values = list(scores) if isinstance(scores, (list, tuple)) else [scores]
 
+        if not values:
+            return "No scores provided."
+
         avg_score = round(sum(values) / len(values), 3)
         score_text = f"Average: {avg_score} from {len(values)} samples"
 
-        # --- Prepare reasons block ---
+        # --- Prepare reasons ---
         reason_text = ""
         if reasons:
             items = reasons if isinstance(reasons, (list, tuple)) else [reasons]
-            reason_text = "\n".join(f"- {r}" for r in items if r)
+            cleaned = [r for r in items if r]
+            if cleaned:
+                reason_text = "\n".join(f"- {r}" for r in cleaned)
+
+        # --- Build instruction block ---
+        instruction_parts = [f"Write the summary in {language}."]
+
+        if tone:
+            instruction_parts.append(f"Use a {tone} tone.")
+
+        if audience:
+            instruction_parts.append(f"Target the explanation to a {audience} audience.")
+
+        if extra_context:
+            instruction_parts.append(extra_context)
+
+        add_info = " ".join(instruction_parts)
 
         # --- Build prompt ---
         prompt = OllamaConnect.dflt_vals.metric_summary_prompt.format(
             metric=metric_name,
             scores=score_text,
             reasons=reason_text,
-            add_info=kwargs.get("add_info", "")
+            add_info=add_info
         )
 
         # --- Call model ---
@@ -305,45 +337,95 @@ class OllamaConnect:
         if not responses:
             return "Could not generate metric summary."
 
-        summaries = [r["summary"] for r in responses]
+        summaries = [r.get("summary", "") for r in responses if r.get("summary")]
+
+        if not summaries:
+            return "Model did not return a valid summary."
 
         return summaries[0] if len(summaries) == 1 else "\n\n".join(
-            f"Summary {i+1} : {s}" for i, s in enumerate(summaries)
+            f"Summary {i+1}: {s}" for i, s in enumerate(summaries)
         )
 
-
     @staticmethod
-    def get_single_plan_summary(plan_name: str, metrics: dict, **kwargs):
+    def get_single_plan_summary(
+        plan_name: str,
+        metrics: dict,
+        language: str = "English",
+        tone: str | None = None,
+        audience: str | None = None,
+        extra_context: str | None = None
+    ):
+        """
+        Generates a summary for a plan based on metric-level summaries.
+        """
 
+        # --- Build structured overview ---
         plan_overview = []
 
         for metric_name, data in metrics.items():
 
-            if "metric_summary" not in data:
+            metric_summary = data.get("metric_summary")
+            if not metric_summary:
                 continue
+
+            testcases = data.get("Testcases") or {}
 
             plan_overview.append({
                 "metric": metric_name,
-                "metric_summary": data.get("metric_summary"),
-                "testcase_count": len(data.get("Testcases", {}))
+                "metric_summary": metric_summary,
+                "testcase_count": len(testcases)
             })
 
+        if not plan_overview:
+            return "No metric summaries available to generate plan summary."
+
+        # --- Build instruction block ---
+        instruction_parts = [f"Write the summary in {language}."]
+
+        if tone:
+            instruction_parts.append(f"Use a {tone} tone.")
+
+        if audience:
+            instruction_parts.append(f"Target the explanation to a {audience} audience.")
+
+        if extra_context:
+            instruction_parts.append(extra_context)
+
+        add_info = " ".join(instruction_parts)
+
+        # --- Build prompt ---
         prompt = OllamaConnect.dflt_vals.plan_summary_prompt.format(
             plan=plan_name,
             overview=json.dumps(plan_overview, indent=2),
-            add_info=kwargs.get("add_info", "")
+            add_info=add_info
         )
 
+        # --- Call model ---
         responses = OllamaConnect.prompt_model(
             prompt,
             OllamaConnect.dflt_vals.reqd_flds
         )
 
-        return responses[0]["summary"] if responses else "Could not generate plan summary."
+        if not responses:
+            return "Could not generate plan summary."
+
+        summary = responses[0].get("summary")
+        return summary if summary else "Model did not return a valid summary."
+
         
     @staticmethod
-    def get_run_summary(score_card: dict, **kwargs):
+    def get_run_summary(
+        score_card: dict,
+        language: str = "English",
+        tone: str | None = None,
+        audience: str | None = None,
+        extra_context: str | None = None
+    ):
+        """
+        Generates a run-level summary based on plan-level summaries.
+        """
 
+        # --- Build structured overview ---
         run_overview = []
 
         for plan_name, metrics in score_card.items():
@@ -351,10 +433,10 @@ class OllamaConnect:
             if not isinstance(metrics, dict) or plan_name == "PlanSummary":
                 continue
 
-            # Grab plan summary from any metric node (they all share it)
             plan_summary = None
+
             for data in metrics.values():
-                if "plan_summary" in data:
+                if isinstance(data, dict) and data.get("plan_summary"):
                     plan_summary = data["plan_summary"]
                     break
 
@@ -366,11 +448,30 @@ class OllamaConnect:
                 "plan_summary": plan_summary
             })
 
+        if not run_overview:
+            return "No plan summaries available to generate run summary."
+
+        # --- Build instruction block ---
+        instruction_parts = [f"Write the summary in {language}."]
+
+        if tone:
+            instruction_parts.append(f"Use a {tone} tone.")
+
+        if audience:
+            instruction_parts.append(f"Target the explanation to a {audience} audience.")
+
+        if extra_context:
+            instruction_parts.append(extra_context)
+
+        add_info = " ".join(instruction_parts)
+
+        # --- Build prompt ---
         prompt = OllamaConnect.dflt_vals.run_summary_prompt.format(
             overview=json.dumps(run_overview, indent=2),
-            add_info=kwargs.get("add_info", "")
+            add_info=add_info
         )
 
+        # --- Call model ---
         responses = OllamaConnect.prompt_model(
             prompt,
             OllamaConnect.dflt_vals.reqd_flds
@@ -379,10 +480,17 @@ class OllamaConnect:
         if not responses:
             return "Could not generate run summary."
 
-        summaries = [r["summary"] for r in responses]
+        summaries = [
+            r.get("summary")
+            for r in responses
+            if isinstance(r, dict) and r.get("summary")
+        ]
+
+        if not summaries:
+            return "Model did not return a valid summary."
 
         return summaries[0] if len(summaries) == 1 else "\n\n".join(
-            f"Summary {i+1} : {s}" for i, s in enumerate(summaries)
+            f"Summary {i+1}: {s}" for i, s in enumerate(summaries)
         )
 
 
