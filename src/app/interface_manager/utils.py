@@ -20,6 +20,7 @@ from selenium.common.exceptions import (
 from selenium.webdriver.common.action_chains import ActionChains
 from webdriver_manager.chrome import ChromeDriverManager
 import traceback
+from lib.strategy.utils_new import test_chrome_driver_compatibility
 
 from logger import get_logger
 
@@ -53,6 +54,14 @@ class DriverManager:
         self.close_chrome_with_profile()
 
         logger.info(f"Launching {app_name} at {url}")
+
+        # Checking the compatibility of the chrome browser and chromedriver
+        if not test_chrome_driver_compatibility():
+            raise RuntimeError(
+                f"Interface automation failed due to version mismatch.\n"                
+                f"Please update Chrome or ChromeDriver so both share the same major version."
+            )
+
         opts = Options()
         opts.add_argument("--no-sandbox")
         opts.add_argument("--start-maximized")

@@ -22,6 +22,9 @@ from reportlab.lib import colors
 from reportlab.lib.enums import TA_JUSTIFY
 from reportlab.pdfbase import pdfmetrics
 
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+
 logger = get_logger("utils_new")
 
 class FileLoader:
@@ -824,3 +827,35 @@ class EvaluationReport:
         )
 
         return filename
+
+# Validates Chrome and ChromeDriver versions to ensure they are compatible.
+# This check prevents Selenium WebDriver initialization failures during web evaluations.
+def test_chrome_driver_compatibility():
+    options = Options()
+    options.add_argument("--headless=new")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+
+    driver = None
+
+    try:
+        logger.info("Starting ChromeDriver compatibility test")
+
+        driver = webdriver.Chrome(options=options)
+
+        # 1. Verify session
+        browser_version = driver.capabilities.get("browserVersion")
+        driver_version = driver.capabilities.get("chrome", {}).get("chromedriverVersion")
+
+        logger.info("Browser version: %s", browser_version)
+        logger.info("Driver version: %s", driver_version)
+        if browser_version == driver_version.split(" ")[0]:
+            logger.info("Compatibility test PASSED: browser and driver versions are compatible")
+            return True
+        else:
+            logger.info("Compatibility test FAILED: versions do not match")
+            return False
+
+    except Exception:
+        logger.exception("Compatibility test FAILED")
+        return False
