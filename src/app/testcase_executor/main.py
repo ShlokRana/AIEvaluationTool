@@ -336,10 +336,10 @@ def main():
         # using an existing "incomplete run" if the run name is provided
         if args.run_name is None:
             # generate a random run name if not provided
-            # run_name = randomname.generate('v/*','adj/*','n/*','ip/*')
+            run_name = randomname.generate('v/*','adj/*','n/*','ip/*')
             # The above pattern is not working as expected in Test Execution WebUI redirect, so using a simpler pattern for now. 
             # We can enhance it later if needed.
-            run_name = randomname.generate('v-*', 'adj-*', 'n-*', 'ip-*')
+            # run_name = randomname.generate('v-*', 'adj-*', 'n-*', 'ip-*')
             logger.debug(f"Run name not provided, creating a new Run \"{run_name}\"")
             # Create a new run entry in the database
             start_time = datetime.now().isoformat()
