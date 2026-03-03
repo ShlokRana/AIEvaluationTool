@@ -865,7 +865,7 @@ The TestCase Evaluation Dashboard is a web-based application for
 configuring, starting, monitoring, and analyzing AI model evaluations.
 Users can initiate test runs directly from the interface, track
 execution status in real time, and review detailed evaluation results
-with full explainability.
+with full explainability. For the user manual, [click here](docs/Testcase_execution_dashboard_doc.pdf).
 
 ------------------------------------------------------------------------
 
