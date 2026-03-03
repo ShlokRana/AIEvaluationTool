@@ -89,8 +89,6 @@ This major release marks a foundational milestone for the Conversational AI Eval
 -   **High-Performance Interface Manager Automation**  
     Optimized screen automation for faster, more reliable interaction with UI-driven target applications.
     
- #### **New Features**  
- 
 - **Support for SQLite**
 	Robust object–relational mapping layer built on **SQLite**, enabling lightweight, portable, file-based structured storage and reliable retrieval of evaluation data with transactional consistency.
 
@@ -111,3 +109,23 @@ This major release marks a foundational milestone for the Conversational AI Eval
 
 - **Test Data Management System (TDMS)**  
     Introduces a web application based centralized system to create, update, and delete test cases directly in the database, ensuring structured test data governance, version control readiness, and scalability for large evaluation programs.
+
+ #### **New Features**  
+
+- **End-to-End Test Run Management**
+
+    The application enables users to configure and initiate AI test runs directly from a centralized web interface. Key parameters such as target model, test plan, domain, language, and metrics can be selected before execution. This streamlined workflow ensures consistency and simplifies evaluation management.
+
+- **Centralized Monitoring Dashboard**
+
+    All test runs are displayed in a unified dashboard showing status, timestamps, duration, and associated domains. Users can filter runs by domain, target, or status for quick access. This improves visibility and operational oversight across multiple evaluations.
+
+- **Detailed and Explainable Results**
+    
+    Each test run provides structured results with metrics, scores, and execution status for individual test cases. Users can drill down to view evaluation reasoning, metadata, and the full conversation context. This enhances transparency and supports responsible AI assessment.
+
+- **Scalable Evaluation Framework**
+    
+    The system is designed to handle large-scale evaluation programs with structured data organization and reporting. Its modular configuration options allow flexible experimentation while maintaining traceability. This ensures scalability as evaluation needs expand.
+ 
+
