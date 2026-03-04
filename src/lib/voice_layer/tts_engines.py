@@ -1,7 +1,128 @@
+import torch
+import soundfile as sf
+from parler_tts import ParlerTTSForConditionalGeneration
+from transformers import AutoTokenizer
+import warnings
+from sarvamai import SarvamAI
+from sarvamai.play import save
+from langdetect import detect
 from snac import SNAC
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import soundfile as sf
+
+
+warnings.filterwarnings("ignore")
+
+class IndicParlerTTS:
+
+    def __init__(self,
+                 model_name="ai4bharat/indic-parler-tts"):
+
+        print("[Parler] Loading model...")
+
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        self.model = ParlerTTSForConditionalGeneration.from_pretrained(
+            model_name
+        ).to(self.device)
+
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+        self.desc_tokenizer = AutoTokenizer.from_pretrained(
+            self.model.config.text_encoder._name_or_path
+        )
+
+        self.sr = self.model.config.sampling_rate
+
+        print("[Parler] Ready on", self.device)
+
+
+    def audio(self,
+              text,
+              output_file="output.wav",
+              voice_desc=None):
+
+        print("[Parler] Generating speech...")
+
+        if voice_desc is None:
+            voice_desc = (
+                "A clear neutral voice, normal pace, studio quality"
+            )
+
+        desc_inputs = self.desc_tokenizer(
+            voice_desc,
+            return_tensors="pt"
+        ).to(self.device)
+
+        text_inputs = self.tokenizer(
+            text,
+            return_tensors="pt"
+        ).to(self.device)
+
+        with torch.no_grad():
+
+            gen = self.model.generate(
+                input_ids=desc_inputs.input_ids,
+                attention_mask=desc_inputs.attention_mask,
+                prompt_input_ids=text_inputs.input_ids,
+                prompt_attention_mask=text_inputs.attention_mask
+            )
+
+        audio = gen.cpu().numpy().squeeze()
+
+        sf.write(output_file, audio, self.sr)
+
+        print(f"[Parler] Saved: {output_file}")
+
+class SarvamTTS:
+
+    def __init__(self, api_key, model="bulbul:v3"):
+
+        print("[Sarvam] Initializing client...")
+
+        self.client = SarvamAI(
+            api_subscription_key=api_key
+        )
+
+        self.model = model
+
+        # Language mapping
+        self.lang_map = {
+            "en": "en-IN",
+            "ta": "ta-IN"
+        }
+
+        print("[Sarvam] Ready")
+
+
+    def _detect_lang(self, text):
+
+        try:
+            return detect(text)
+        except:
+            return "en"
+
+
+    def audio(self, text, output_file="output.wav"):
+
+        print("[Sarvam] Generating speech...")
+
+        lang = self._detect_lang(text)
+
+        code = self.lang_map.get(lang, "en-IN")
+
+        print(f"[Sarvam] Language: {lang} → {code}")
+
+        response = self.client.text_to_speech.convert(
+            text=text,
+            target_language_code=code,
+            model=self.model
+        )
+
+        save(response, output_file)
+
+        print(f"[Sarvam] Saved: {output_file}")
 
 class Svara_TTS:
 
@@ -125,13 +246,13 @@ class Svara_TTS:
 
         return audio_array
 
-    def transcribe(self, text_input : str, lang : str = "English" ,gender : str = "Female"):
+    def audio(self, text_input : str, save_path : str, lang : str = "English" ,gender : str = "Female"):
         try:
             audio_array = self.generate_audio_from_text(
                 text=text_input,
                 language = lang,
                 gender=gender
             )
-            sf.write("output2.wav", audio_array, 24000)
+            sf.write(save_path, audio_array, 24000)
         except Exception as e:
             print(f"Error : {e}")

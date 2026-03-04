@@ -17,6 +17,7 @@ saved_evaluations/**
 new_data.json
 responses_T**.json
 evaluation_summary**
+images/
 
 test.py
 improvement_eval.py
