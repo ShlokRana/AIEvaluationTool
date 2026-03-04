@@ -497,9 +497,12 @@ class OllamaConnect:
     @staticmethod
     def translate(text : str, language : str = "English"):
         prompt = OllamaConnect.dflt_vals.translate_prompt.format(text=text, language=language)
-        # i have to convert from dict to str here
-        return OllamaConnect.prompt_model(prompt, OllamaConnect.dflt_vals.reqd_flds)[0]["translation"]
-
+        resp=  OllamaConnect.prompt_model(prompt, OllamaConnect.dflt_vals.reqd_flds)
+        if len(resp) > 0:
+            return resp[0]["translation"]
+        else:
+            return ""
+        
 
 # The EvaluationReport class is responsible for generating a PDF report of the evaluation results. 
 class EvaluationReport:
