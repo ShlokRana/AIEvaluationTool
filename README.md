@@ -1,5 +1,5 @@
 
-# Conversational AI Evaluation Tool - v1.0.1
+# Conversational AI Evaluation Tool - v1.2
 
 ## 1. **Overview & Purpose**
 
@@ -183,11 +183,18 @@ AIEvaluationTool/
 │   │   │   ├── config.json             # Analyzer configuration
 │   │   ├── sarvam_ai/                  # Local LLM model deployment
 │   │   │   ├── main.py                 # Model server entry point
-│   │   └── TDMS/                       # Test Data Management System
+│   │   ├── TDMS/                       # Test Data Management System
+│   │   │   ├── back-end/               # FastAPI backend service
+│   │   │   │   ├── main.py             # TDMS API server
+│   │   │   │   ├── database/           # Database layer
+│   │   │   │       ├── config.json     # Database layer
+│   │   │   └── front-end/              # React/Node.js frontend
+│   │   └── TestCaseExecutorDashboard/  # Test Case Execution Dashboard
 │   │       ├── back-end/               # FastAPI backend service
+│   │       │   ├── .env                # DB configuration and Dev Configuration
+│   │       │   ├── .env.example        # Environment template
 │   │       │   ├── main.py             # TDMS API server
-│   │       │   ├── database/           # Database layer
-│   │       │       ├── config.json     # Database layer
+│   │       │   ├── config.json         # Configure Database and Ports
 │   │       └── front-end/              # React/Node.js frontend
 │   └── lib/
 │       ├── strategy/..                 # Evaluation strategy implementations
@@ -857,6 +864,249 @@ Local URL: http://localhost:8501
 
 ---
 
+---
+
+## TestCase Evaluation Dashboard
+
+### Overview
+
+The TestCase Evaluation Dashboard is a web-based application for
+configuring, starting, monitoring, and analyzing AI model evaluations.
+Users can initiate test runs directly from the interface, track
+execution status in real time, and review detailed evaluation results
+with full explainability. For the user manual, [click here](docs/Testcase_execution_dashboard_doc.pdf).
+
+------------------------------------------------------------------------
+
+## Start the Front-end Application
+
+### Step 1: Navigate to the Application Directory
+
+``` bash
+cd src/app/TestCaseExecutorDashboard
+```
+
+### Step 2: Start the FrontEnd application
+
+``` bash
+cd front-end
+npm install
+npm start
+```
+
+> Ensure all required dependencies are installed.
+
+After running the command, open the URL shown in the terminal (e.g.,
+http://localhost:3000).
+
+![TRDB application](screenshots/TRDB_without_back_end.png)
+
+------------------------------------------------------------------------
+
+### Start the backend application [In a separate terminal]
+
+``` bash
+cd ../back-end/
+python main.py
+```
+
+### Configure the Databse and port settings from:
+
+> src/app/TestCaseExecutorDashBoard/back-end/config.json
+
+```json
+   {
+     "db": {
+       "engine_type": "sqlite",
+       "file": "AIEvaluationData.db"
+     }
+   }
+   ```
+   
+   **For MariaDB (production):**
+   ```json
+   {
+     "db": {
+       "engine_type": "mariadb",
+       "host": "localhost",
+       "port": 3306,
+       "user": "your_username",
+       "password": "your_password",
+       "database": "tdms_db"
+     }
+   }
+   ```
+
+  **For specifying the port of the back-end application:**
+  ```json
+    "port": {
+      "back-end": "7000",
+      "interface-manager": "8000"
+    }
+  ```
+
+--------------
+
+## Key Features
+
+### 1. Monitor Test Runs
+
+-   View Run ID, Name, Target, Status, Duration, and Domain.
+-   Filter by Domain, Target, or Status.
+-   Access detailed reports for completed runs.
+
+![TRDB application](screenshots/TRDB_first_page.png)
+
+### 2. Create a New Test Run
+
+-   Configure target model, test plan, domain, language, and metrics.
+-   Optionally limit test cases or specify a test case ID.
+-   Click **Start Run** to initiate evaluation directly from the app.
+
+![TRDB application](screenshots/TRDB_add_test_run.png)
+
+### 3. View Test Run Details
+
+-   Execution timeline visualization.
+-   Results table with test cases, metrics, scores, and status.
+-   Filter results by metric or status.
+
+![TRDB application](screenshots/TRDB_test_run_details.png)
+
+### 4. Inspect Individual Test Cases
+
+-   Numerical score with visual indicator.
+-   Detailed evaluation reasoning.
+-   Conversation ID and metadata.
+-   Full conversation details : User Prompt, System Prompt, and Agent Response.
+
+![TRDB application](screenshots/TRDB_single_testcase_eval_details.png)
+
+This application provides an end-to-end workflow for transparent and
+structured AI evaluation.
+
+-------------
+
+## TestCase Evaluation Dashboard
+
+### Overview
+
+The TestCase Evaluation Dashboard is a web-based application for
+configuring, starting, monitoring, and analyzing AI model evaluations.
+Users can initiate test runs directly from the interface, track
+execution status in real time, and review detailed evaluation results
+with full explainability. For the user manual, [click here](docs/Testcase_execution_dashboard_doc.pdf).
+
+------------------------------------------------------------------------
+
+## Start the Front-end Application
+
+### Step 1: Navigate to the Application Directory
+
+``` bash
+cd src/app/TestCaseExecutorDashboard
+```
+
+### Step 2: Start the FrontEnd application
+
+``` bash
+cd front-end
+npm install
+npm start
+```
+
+> Ensure all required dependencies are installed.
+
+After running the command, open the URL shown in the terminal (e.g.,
+http://localhost:3000).
+
+![TRDB application](screenshots/TRDB_without_back_end.png)
+
+------------------------------------------------------------------------
+
+### Start the backend application [In a separate terminal]
+
+``` bash
+cd ../back-end/
+python main.py
+```
+
+### Configure the Databse and port settings from:
+
+> src/app/TestCaseExecutorDashBoard/back-end/config.json
+
+```json
+   {
+     "db": {
+       "engine_type": "sqlite",
+       "file": "AIEvaluationData.db"
+     }
+   }
+   ```
+   
+   **For MariaDB (production):**
+   ```json
+   {
+     "db": {
+       "engine_type": "mariadb",
+       "host": "localhost",
+       "port": 3306,
+       "user": "your_username",
+       "password": "your_password",
+       "database": "tdms_db"
+     }
+   }
+   ```
+
+  **For specifying the port of the back-end application:**
+  ```json
+    "port": {
+      "back-end": "7000",
+      "interface-manager": "8000"
+    }
+  ```
+
+--------------
+
+## Key Features
+
+### 1. Monitor Test Runs
+
+-   View Run ID, Name, Target, Status, Duration, and Domain.
+-   Filter by Domain, Target, or Status.
+-   Access detailed reports for completed runs.
+
+![TRDB application](screenshots/TRDB_first_page.png)
+
+### 2. Create a New Test Run
+
+-   Configure target model, test plan, domain, language, and metrics.
+-   Optionally limit test cases or specify a test case ID.
+-   Click **Start Run** to initiate evaluation directly from the app.
+
+![TRDB application](screenshots/TRDB_add_test_run.png)
+
+### 3. View Test Run Details
+
+-   Execution timeline visualization.
+-   Results table with test cases, metrics, scores, and status.
+-   Filter results by metric or status.
+
+![TRDB application](screenshots/TRDB_test_run_details.png)
+
+### 4. Inspect Individual Test Cases
+
+-   Numerical score with visual indicator.
+-   Detailed evaluation reasoning.
+-   Conversation ID and metadata.
+-   Full conversation details : User Prompt, System Prompt, and Agent Response.
+
+![TRDB application](screenshots/TRDB_single_testcase_eval_details.png)
+
+This application provides an end-to-end workflow for transparent and
+structured AI evaluation.
+
+-------------
 
 ## How the AI Evaluation Tool Came to Life
 

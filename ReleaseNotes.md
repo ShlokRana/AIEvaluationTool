@@ -1,113 +1,26 @@
-### **Conversational AI Evaluation Tool - Version 1.0.1**
+### **Conversational AI Evaluation Tool - Version 1.2**
 
 #### **Description**: 
 
-This release builds upon the foundational architecture of version 1.0 with significant enhancements to documentation, test data management, and API integration. Version 1.0.1 introduces comprehensive user manuals, streamlined test planning and metrics management capabilities, and improved API-driven automation workflows for evaluating conversational AI systems across multiple evaluation strategies.
-
-#### **Existing Features (Carried Forward)**
-
--   **ORM-Based Persistence Layer over MariaDB**  
-    Robust object–relational mapping layer built on MariaDB, enabling structured storage and retrieval of evaluation data with transactional consistency.  
-
--   **Target and Test Run Management**  
-    Support for defining evaluation targets and executing controlled test runs as part of the standard evaluation workflow.  
-
--   **Extensive Strategy Library**  
-    Includes 43 evaluation strategies covering multiple dimensions of conversational AI assessment.
-
--   **Comprehensive Metrics Suite**  
-    Provides 48 evaluation metrics to measure quality, safety, consistency, and robustness of conversational AI responses.
-
--   **Predefined Test Plans**  
-    Ships with 7 curated test plans designed to address common conversational AI evaluation scenarios.  
-
--   **Large-Scale Test Case Repository**  
-    Includes 400+ test cases, enabling broad coverage across domains, intents, and conversational patterns.  
-
--   **High-Performance Interface Manager Automation**  
-    Optimized screen automation for faster, more reliable interaction with UI-driven target applications.
- 
-- **Support for SQLite**
-	Robust object–relational mapping layer built on **SQLite**, enabling lightweight, portable, file-based structured storage and reliable retrieval of evaluation data with transactional consistency.
-
-- **Enhanced and Extensible Interface Manager**  
-    Introduces a modular interface manager architecture that supports easy integration of new target applications while maintaining isolation and stability across existing evaluation workflows.  
-    
-- **Separation of Automation Configuration from Core Logic**
-	XPath definitions and credentials are externalized from the interface manager’s core codebase, allowing end users to adapt UI changes and authentication details without modifying or redeploying the system.
-
-- **Support for API-based target applications**
-    Adds support for API-based target applications compatible with OpenAI-style interfaces, along with native evaluation support for WhatsApp Web and browser-based web applications.  
-
-- **Refined Strategy Library**  
-    Includes 43 improved evaluation strategies covering multiple metrics of conversational AI assessment.  
-
-- **Synthetic Dataset Support for Strategy Validation**  
-    Enables the use of synthetic datasets to systematically validate, stress-test, and benchmark individual evaluation strategies under controlled and edge-case conversational scenarios.  
-
-- **Test Data Management System (TDMS)**  
-    Introduces a web application based centralized system to create, update, and delete test cases directly in the database, ensuring structured test data governance, version control readiness, and scalability for large evaluation programs.
+Version 1.2 builds upon the foundational architecture introduced in earlier releases with major enhancements across documentation, test data governance, API integration, and execution monitoring. This version introduces a significantly enhanced Test Case Execution Dashboard, delivering improved visibility, structured monitoring, and detailed execution tracking across conversational AI evaluation workflows. This release strengthens operational transparency and provides deeper insight into individual test case behavior within each evaluation run. 
 
 #### **New Features**
+- **End-to-End Test Run Management**
 
--   **Comprehensive Documentation Suite**  
-    Updated README with setup instructions, configuration guidelines, and usage workflows. Includes technical documentation on system architecture, component interactions, and extensibility. Accompanied by a TDMS user manual with step-by-step guidance for test data management.
+    The application enables users to configure and initiate AI test runs directly from a centralized web interface. Key parameters such as target model, test plan, domain, language, and metrics can be selected before execution. This streamlined workflow ensures consistency and simplifies evaluation management.
 
--   **Test Plan and Metrics Management**  
-    Expanded the Test Data Management System (TDMS) with full CRUD capabilities for both test plans and evaluation metrics. This enhancement supports seamless creation, modification test plan configurations and custom metrics.
-
--   **Refactored Interface Manager with Improved API Logging**  
-    Refactored the interface manager to align API logging with the other interface options, such as WhatsApp and WebApp. Enhancements include logging of prompt submissions and response retrieval, ensuring detailed audit trails and actionable performance insights.
-
-
-### **Conversational AI Evaluation Tool - Version 1.0**
-
-#### **Description**: 
-
-This major release marks a foundational milestone for the Conversational AI Evaluation Tool. The platform now provides a unified, scalable, and extensible framework for evaluating conversational AI systems across multiple dimensions, languages, and evaluation strategies. The release focuses on modular design of interface manager, strategy improvements, and multilingual readiness
-
-#### **Existing Features (Carried Forward)**
-
--   **ORM-Based Persistence Layer over MariaDB**  
-    Robust object–relational mapping layer built on MariaDB, enabling structured storage and retrieval of evaluation data with transactional consistency.  
-
--   **Target and Test Run Management**  
-    Support for defining evaluation targets and executing controlled test runs as part of the standard evaluation workflow.  
-
--   **Extensive Strategy Library**  
-    Includes 43 evaluation strategies covering multiple dimensions of conversational AI assessment.
-
--   **Comprehensive Metrics Suite**  
-    Provides 48 evaluation metrics to measure quality, safety, consistency, and robustness of conversational AI responses.
-
--   **Predefined Test Plans**  
-    Ships with 7 curated test plans designed to address common conversational AI evaluation scenarios.  
-
--   **Large-Scale Test Case Repository**  
-    Includes 400+ test cases, enabling broad coverage across domains, intents, and conversational patterns.  
-
--   **High-Performance Interface Manager Automation**  
-    Optimized screen automation for faster, more reliable interaction with UI-driven target applications.
+- **Centralized Monitoring Dashboard**
     
- #### **New Features**  
- 
-- **Support for SQLite**
-	Robust object–relational mapping layer built on **SQLite**, enabling lightweight, portable, file-based structured storage and reliable retrieval of evaluation data with transactional consistency.
+    All test runs are displayed in a unified dashboard showing status, timestamps, duration, and associated domains. Users can filter runs by domain, target, or status for quick access. This improves visibility and operational oversight across multiple evaluations.
 
-- **Enhanced and Extensible Interface Manager**  
-    Introduces a modular interface manager architecture that supports easy integration of new target applications while maintaining isolation and stability across existing evaluation workflows.  
+- **Detailed and Explainable Results**
     
-- **Separation of Automation Configuration from Core Logic**
-	XPath definitions and credentials are externalized from the interface manager’s core codebase, allowing end users to adapt UI changes and authentication details without modifying or redeploying the system.
+    Each test run provides structured results with metrics, scores, and execution status for individual test cases. Users can drill down to view evaluation reasoning, metadata, and the full conversation context. This enhances transparency and supports responsible AI assessment.
 
-- **Support for API-based target applications**
-    Adds support for API-based target applications compatible with OpenAI-style interfaces, along with native evaluation support for WhatsApp Web and browser-based web applications.  
+- **Scalable Evaluation Framework**
+    
+    The system is designed to handle large-scale evaluation programs with structured data organization and reporting. Its modular configuration options allow flexible experimentation while maintaining traceability. This ensures scalability as evaluation needs expand.
 
-- **Refined Strategy Library**  
-    Includes 43 improved evaluation strategies covering multiple metrics of conversational AI assessment.  
+- **Enhancement in Response Analyzer**
 
-- **Synthetic Dataset Support for Strategy Validation**  
-    Enables the use of synthetic datasets to systematically validate, stress-test, and benchmark individual evaluation strategies under controlled and edge-case conversational scenarios.  
-
-- **Test Data Management System (TDMS)**  
-    Introduces a web application based centralized system to create, update, and delete test cases directly in the database, ensuring structured test data governance, version control readiness, and scalability for large evaluation programs.
+    The application introduces a Re-analysis feature that allows users to selectively re-evaluate failed or specific test cases without rerunning the entire test run. It also provides an option to generate and export evaluation reports, enabling easy documentation, review, and further analysis of the results.
