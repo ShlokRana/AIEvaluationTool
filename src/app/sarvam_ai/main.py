@@ -30,6 +30,9 @@ from lib.utils.logger import get_logger
 #     score: float
 #     label: str
 
+class ReqForVoice(BaseModel):
+    text : str
+
 app = FastAPI(title="Sarvam AI Application")
 translator = SarvamAITranslator()
 generator = SarvamAIGenerator()
@@ -112,7 +115,6 @@ def text_to_speech(text : str):
             return FileResponse(
                 audio_path,
                 media_type="audio/wav",
-                file_name="temp.wav"
             )
 
         else:

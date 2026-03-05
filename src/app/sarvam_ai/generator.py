@@ -14,7 +14,7 @@ from typing import Optional, List
 
 # Adjust the path to include the "lib" directory
 sys.path.append(os.path.dirname(__file__) + "/../../")
-from lib.voice_layer.tts_engines import IndicParlerTTS, SarvamTTS, Svara_TTS
+from lib.voice_layer.tts_engines import SarvamTTS, Svara_TTS
 from lib.voice_layer.asr_engines import IndicConformerASR, WhisperASR  
 from dotenv import load_dotenv
 load_dotenv()
@@ -165,12 +165,12 @@ class SarvamAIGenerator:
     
 class VoiceLayer:
                             
-    def __init__(self, model : str ="svara", loglevel = logging.DEBUG):
+    def __init__(self, model : str ="sarvam", loglevel = logging.DEBUG):
         match model:
             case "sarvam":
-                self.tts = SarvamTTS()
-            case "indicparler":
-                self.tts = IndicParlerTTS()
+                self.tts = SarvamTTS("sk_5l1rd7i5_PDy3NUqEsdm5ZawDcv0IA31n")
+            # case "indicparler":
+            #     self.tts = IndicParlerTTS()
             case _:
                 self.tts = Svara_TTS()
         self.logger = get_logger(__name__, loglevel=loglevel)
