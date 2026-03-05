@@ -74,3 +74,4 @@ bert-extractive-summarizer
 mariadb
 openai-whisper
 parler-tts
+snac

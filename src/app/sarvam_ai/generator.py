@@ -13,7 +13,9 @@ from pydantic import BaseModel
 from typing import Optional, List
 
 # Adjust the path to include the "lib" directory
-sys.path.append(os.path.dirname(__file__) + "/../../")  
+sys.path.append(os.path.dirname(__file__) + "/../../")
+from lib.voice_layer.tts_engines import IndicParlerTTS, SarvamTTS, Svara_TTS
+from lib.voice_layer.asr_engines import IndicConformerASR, WhisperASR  
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -160,5 +162,27 @@ class SarvamAIGenerator:
         vec = h.mean(dim=0)
         vec = vec / (vec.norm() + 1e-12)
         return vec.cpu().tolist()
+    
+class VoiceLayer:
+                            
+    def __init__(self, model : str ="svara", loglevel = logging.DEBUG):
+        match model:
+            case "sarvam":
+                self.tts = SarvamTTS()
+            case "indicparler":
+                self.tts = IndicParlerTTS()
+            case _:
+                self.tts = Svara_TTS()
+        self.logger = get_logger(__name__, loglevel=loglevel)
+    
+    def convert_to_audio(self, text : str):
+        try:
+            self.tts.audio(text, os.path.join(os.getcwd(), "temp.wav"))
+            return "temp.wav"
+            # have to send this to the target as an audio file
+        except Exception as e:
+            self.logger.error("Could not convert to an audio file.", e)
+            return ""        
+        
 
 

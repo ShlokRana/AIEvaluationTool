@@ -14,6 +14,8 @@ from rich.console import Console
 from rich.table import Table
 from datetime import datetime
 import randomname  # Importing the randomname library for generating random names
+import os
+import requests
 
 sys.path.append(os.path.dirname(__file__) + "/../../")  # Adjust the path to include the "lib" directory
 
@@ -21,8 +23,8 @@ from lib.interface_manager import InterfaceManagerClient  # Import the Interface
 from lib.orm import DB  # Import the DB class from the ORM module
 from lib.data import Target, Run, RunDetail, Conversation
 from lib.utils import get_logger, get_logger_verbosity
-from lib.voice_layer.asr_engines import IndicConformerASR, WhisperASR
-from lib.voice_layer.tts_engines import IndicParlerTTS, SarvamTTS, Svara_TTS
+# from lib.voice_layer.asr_engines import IndicConformerASR, WhisperASR
+# from lib.voice_layer.tts_engines import IndicParlerTTS, SarvamTTS, Svara_TTS
 
 def is_error_response(response):
     error_indicators = [
@@ -73,7 +75,7 @@ def main():
     parser.add_argument("--verbosity", "-v", dest="verbosity", type=int, choices=[0,1,2,3,4,5], help="Enable verbose output", default=5)
     parser.add_argument("--language-strict", "-l", dest="language_strict", action="store_true", help="Enable strict language matching for test case selection based on target's language")
     parser.add_argument("--domain-strict", "-d", dest="domain_strict", action="store_true", help="Enable strict domain matching for test case selection based on target's domain")
-    parser.add_argument("--voice", "-V", dest="voice", help="Enable voice evaluation.")
+    parser.add_argument("--voice", "-V", dest="voice", action="store_true", help="Enable voice evaluation.")
 
     args = parser.parse_args()
 
@@ -451,11 +453,14 @@ def main():
 
                         if args.voice:
                             try:
-                                tts = Svara_TTS()
-                                tts.audio(message_to_agent, os.path.join(os.getcwd(), "temp.wav"))
-                                # have to send this to the target as an audio file
-                            except:
-                                logger.error("Could not convert to an audio file.")
+                                req = {"text" : message_to_agent}
+                                response = requests.post(os.getenv("GPU_URL"), json=req)
+                                if response.status_code == 200:
+                                    with open("temp.wav", "wb") as f:
+                                        f.write(response.content)
+                                    logger.info("The text has been transcribed.")
+                            except Exception as e:
+                                logger.error("Could not convert the text to an audio file.", e)
 
                         response_from_agent = client.chat(chat_id = testcase.testcase_id, prompt_list=[message_to_agent])
                         agent_response = response_from_agent.json().get("response", "")
@@ -573,11 +578,14 @@ def main():
 
                         if args.voice:
                             try:
-                                tts = Svara_TTS()
-                                tts.audio(message_to_agent, os.path.join(os.getcwd(), "temp.wav"))
-                                # have to send this to the target as an audio file
-                            except:
-                                logger.error("Could not convert to an audio file.")
+                                req = {"text" : message_to_agent}
+                                response = requests.post(os.getenv("GPU_URL"), json=req)
+                                if response.status_code == 200:
+                                    with open("temp.wav", "wb") as f:
+                                        f.write(response.content)
+                                    logger.info("The text has been transcribed.")
+                            except Exception as e:
+                                logger.error("Could not convert the text to an audio file.", e)
 
                         response_from_agent = client.chat(chat_id = testcase.testcase_id, prompt_list=[message_to_agent])
                         agent_response = response_from_agent.json().get("response", "")
@@ -677,11 +685,14 @@ def main():
 
                         if args.voice:
                             try:
-                                tts = Svara_TTS()
-                                tts.audio(message_to_agent, os.path.join(os.getcwd(), "temp.wav"))
-                                # have to send this to the target as an audio file
-                            except:
-                                logger.error("Could not convert to an audio file.")
+                                req = {"text" : message_to_agent}
+                                response = requests.post(os.getenv("GPU_URL"), json=req)
+                                if response.status_code == 200:
+                                    with open("temp.wav", "wb") as f:
+                                        f.write(response.content)
+                                    logger.info("The text has been transcribed.")
+                            except Exception as e:
+                                logger.error("Could not convert the text to an audio file.", e)
 
                         # send the prompt to the agent via the interface manager client
                         response_from_agent = client.chat(chat_id = testcase.testcase_id, prompt_list=[message_to_agent])

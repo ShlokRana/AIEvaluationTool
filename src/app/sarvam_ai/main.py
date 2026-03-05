@@ -2,7 +2,7 @@
 # @date 2025-07-24
 # @description This module initializes the Sarvam AI translator instance for use in the application.
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import uvicorn
 import argparse, logging
@@ -10,8 +10,9 @@ import sys, os
 from typing import Optional
 
 from translator import SarvamAITranslator
-from generator import SarvamAIGenerator
+from generator import SarvamAIGenerator, VoiceLayer
 from safety import ShieldGemmaSafety
+from fastapi.responses import FileResponse
 
 # Adjust the path to include the "lib" directory
 sys.path.append(os.path.dirname(__file__) + "/../../")  
@@ -32,6 +33,7 @@ from lib.utils.logger import get_logger
 app = FastAPI(title="Sarvam AI Application")
 translator = SarvamAITranslator()
 generator = SarvamAIGenerator()
+voice_layer = VoiceLayer()
 
 safety_engine: Optional[ShieldGemmaSafety] = None
 
@@ -97,6 +99,33 @@ def get_perplexity(text : str):
 def get_hidden(text : str):
     hidden_vecs = generator.early_embedding(text)
     return {"hidden" : hidden_vecs}
+
+@app.post("/tts")
+def text_to_speech(text : str):
+    try:
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="Text cannot be empty.")
+
+        audio_path = voice_layer.convert_to_audio(text)
+
+        if audio_path != "":
+            return FileResponse(
+                audio_path,
+                media_type="audio/wav",
+                file_name="temp.wav"
+            )
+
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail= f"Audio Generation has failed : {str(e)}"
+            )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail= f"Audio Generation has failed : {str(e)}"
+        )
 
 if __name__ == "__main__":
     # Parse command line arguments for host and port
