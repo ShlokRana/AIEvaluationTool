@@ -341,10 +341,10 @@ def main():
         # using an existing "incomplete run" if the run name is provided
         if args.run_name is None:
             # generate a random run name if not provided
-            # run_name = randomname.generate('v/*','adj/*','n/*','ip/*')
+            run_name = randomname.generate('v/*','adj/*','n/*','ip/*')
             # The above pattern is not working as expected in Test Execution WebUI redirect, so using a simpler pattern for now. 
             # We can enhance it later if needed.
-            run_name = randomname.generate('v-*', 'adj-*', 'n-*', 'ip-*')
+            # run_name = randomname.generate('v-*', 'adj-*', 'n-*', 'ip-*')
             logger.debug(f"Run name not provided, creating a new Run \"{run_name}\"")
             # Create a new run entry in the database
             start_time = datetime.now().isoformat()
@@ -454,11 +454,14 @@ def main():
                         if args.voice:
                             try:
                                 req = {"text" : message_to_agent}
-                                response = requests.post(os.getenv("GPU_URL"), json=req)
+                                print(req)
+                                response = requests.post(f"{os.getenv("GPU_URL")}/tts" , params=req)
                                 if response.status_code == 200:
                                     with open("temp.wav", "wb") as f:
                                         f.write(response.content)
                                     logger.info("The text has been transcribed.")
+                                else:
+                                    logger.error(f"Failed to transcribe text to audio. Status code: {response.status_code}, Response: {response.text}")
                             except Exception as e:
                                 logger.error("Could not convert the text to an audio file.", e)
 
@@ -579,11 +582,14 @@ def main():
                         if args.voice:
                             try:
                                 req = {"text" : message_to_agent}
-                                response = requests.post(os.getenv("GPU_URL"), json=req)
+                                print(req)
+                                response = requests.post(f"{os.getenv("GPU_URL")}/tts" , params=req)
                                 if response.status_code == 200:
                                     with open("temp.wav", "wb") as f:
                                         f.write(response.content)
                                     logger.info("The text has been transcribed.")
+                                else:
+                                    logger.error(f"Failed to transcribe text to audio. Status code: {response.status_code}, Response: {response.text}")
                             except Exception as e:
                                 logger.error("Could not convert the text to an audio file.", e)
 
@@ -686,11 +692,14 @@ def main():
                         if args.voice:
                             try:
                                 req = {"text" : message_to_agent}
-                                response = requests.post(os.getenv("GPU_URL"), json=req)
+                                print(req)
+                                response = requests.post(f"{os.getenv("GPU_URL")}/tts" , params=req)
                                 if response.status_code == 200:
                                     with open("temp.wav", "wb") as f:
                                         f.write(response.content)
                                     logger.info("The text has been transcribed.")
+                                else:
+                                    logger.error(f"Failed to transcribe text to audio. Status code: {response.status_code}, Response: {response.text}")
                             except Exception as e:
                                 logger.error("Could not convert the text to an audio file.", e)
 
