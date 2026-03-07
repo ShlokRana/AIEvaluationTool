@@ -257,3 +257,11 @@ tgt = Target(target_name="Gemma3n:e2b",
              target_domain="general",
              target_languages=["english"])
 target_id = db.add_or_get_target(target = tgt)
+
+tgt = Target(target_name="FarmerChat",
+             target_type="WebApp", 
+             target_url="https://www-help-gooey-ai.filesusr.com/html/18ec4d_3005ee787398e60b1e5b118078b53f5b.html", 
+             target_description="FarmerChat is a web-based platform that connects farmers with agricultural experts for real-time advice and support.",
+             target_domain="agriculture",
+             target_languages=["english"])
+target_id = db.add_or_get_target(target = tgt)

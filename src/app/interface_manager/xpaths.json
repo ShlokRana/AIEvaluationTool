@@ -49,6 +49,14 @@
         "prompt_input_box_element": "//*[@id='chat-input']/p",
         "agent_response_element": "//*[@id='response-content-container']"
       }
+    },
+    "farmerchat":
+    {
+      "ChatPage":{
+          "shadow_root_element": "iframe",
+          "prompt_input_box_element": "textarea[placeholder='Message Farmer.CHAT']",
+          "agent_response_element": ".text-reveal-container" 
+      }
     }
   }
 }

@@ -853,7 +853,7 @@ def test_chrome_driver_compatibility():
             logger.info("Compatibility test PASSED: browser and driver versions are compatible")
             return True
         else:
-            logger.info("Compatibility test FAILED: versions do not match")
+            logger.error("Compatibility test FAILED: versions do not match. Please update Chrome or ChromeDriver so both share the same major version.")
             return False
 
     except Exception:

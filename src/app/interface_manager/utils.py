@@ -55,13 +55,6 @@ class DriverManager:
 
         logger.info(f"Launching {app_name} at {url}")
 
-        # Checking the compatibility of the chrome browser and chromedriver
-        if not test_chrome_driver_compatibility():
-            raise RuntimeError(
-                f"Interface automation failed due to version mismatch.\n"                
-                f"Please update Chrome or ChromeDriver so both share the same major version."
-            )
-
         opts = Options()
         opts.add_argument("--no-sandbox")
         opts.add_argument("--start-maximized")
@@ -524,237 +517,366 @@ def send_message_webapp(
     app_cfg = load_xpaths()["applications"][app_name.lower()]
     chat_cfg = app_cfg["ChatPage"]
 
-    input_xpath    = chat_cfg.get("prompt_input_box_element")
-    response_xpath = chat_cfg.get("agent_response_element")
+    if app_name.lower() == "cpgrams":
 
-    if not input_xpath or not response_xpath:
-        logger.error(f"{app_name} ChatPage config incomplete: {chat_cfg}")
-        return "No response received"
+        input_xpath    = chat_cfg.get("prompt_input_box_element")
+        response_xpath = chat_cfg.get("agent_response_element")
 
-    # --- helpers (ensure interactable, clear, type) ---
-    def _ensure_input_interactable(timeout=10):
-        box = WebDriverWait(driver, timeout).until(
-            EC.element_to_be_clickable((By.XPATH, input_xpath))
-        )
-        driver.execute_script("arguments[0].scrollIntoView({block:'center'});", box)
-        for _ in range(4):
-            try:
-                box.click()
-                return box
-            except (WebDriverException, InvalidElementStateException):
+        if not input_xpath or not response_xpath:
+            logger.error(f"{app_name} ChatPage config incomplete: {chat_cfg}")
+            return "No response received"
+
+        # --- helpers (ensure interactable, clear, type) ---
+        def _ensure_input_interactable(timeout=10):
+            box = WebDriverWait(driver, timeout).until(
+                EC.element_to_be_clickable((By.XPATH, input_xpath))
+            )
+            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", box)
+            for _ in range(4):
                 try:
-                    driver.execute_script("arguments[0].focus();", box)
-                except Exception:
-                    pass
-                time.sleep(0.2)
-        try:
-            ActionChains(driver).move_to_element(box).click().perform()
-            return box
-        except Exception as e:
-            raise TimeoutException(f"Input element not interactable: {e}")
-
-    def _clear_input(box) -> bool:
-        try:
-            box.clear()
-            time.sleep(0.08)
-            val = (box.get_attribute("value") or "").strip()
-            contenteditable = box.get_attribute("contenteditable")
-            inner = ""
-            if contenteditable == "true" or not val:
-                inner = (box.get_attribute("innerText") or box.get_attribute("textContent") or "").strip()
-            if val == "" and (contenteditable != "true" or inner == ""):
-                return True
-        except Exception:
-            pass
-        # JS fallback
-        try:
-            driver.execute_script(
-                "arguments[0].value = ''; arguments[0].dispatchEvent(new Event('input', {bubbles:true})); arguments[0].dispatchEvent(new Event('change', {bubbles:true}));",
-                box,
-            )
-            time.sleep(0.06)
-            val = (box.get_attribute("value") or "").strip()
-            inner = (box.get_attribute("innerText") or box.get_attribute("textContent") or "").strip()
-            if val == "" and inner == "":
-                return True
-        except Exception:
-            pass
-        try:
-            driver.execute_script(
-                "arguments[0].innerText = ''; arguments[0].textContent = ''; arguments[0].dispatchEvent(new Event('input', {bubbles:true}));",
-                box,
-            )
-            time.sleep(0.06)
-            inner = (box.get_attribute("innerText") or box.get_attribute("textContent") or "").strip()
-            if inner == "":
-                return True
-        except Exception:
-            pass
-        logger.debug("Unable to fully clear input element prior to sending.")
-        return False
-
-    def _type_into_input(box, text):
-        try:
-            for chunk in split_message(text):
-                box.send_keys(chunk)
-                box.send_keys(Keys.SHIFT + Keys.RETURN)
-                time.sleep(0.15)
-            # final Enter -- if UI has a send button we will click it instead later
-            box.send_keys(Keys.RETURN)
-            return
-        except (InvalidElementStateException, WebDriverException) as e:
-            logger.debug(f"send_keys failed, falling back to JS. Error: {e}")
+                    box.click()
+                    return box
+                except (WebDriverException, InvalidElementStateException):
+                    try:
+                        driver.execute_script("arguments[0].focus();", box)
+                    except Exception:
+                        pass
+                    time.sleep(0.2)
             try:
-                set_js = (
-                    "arguments[0].value = arguments[1];"
-                    "arguments[0].dispatchEvent(new Event('input', {bubbles:true}));"
-                    "arguments[0].dispatchEvent(new Event('change', {bubbles:true}));"
+                ActionChains(driver).move_to_element(box).click().perform()
+                return box
+            except Exception as e:
+                raise TimeoutException(f"Input element not interactable: {e}")
+
+        def _clear_input(box) -> bool:
+            try:
+                box.clear()
+                time.sleep(0.08)
+                val = (box.get_attribute("value") or "").strip()
+                contenteditable = box.get_attribute("contenteditable")
+                inner = ""
+                if contenteditable == "true" or not val:
+                    inner = (box.get_attribute("innerText") or box.get_attribute("textContent") or "").strip()
+                if val == "" and (contenteditable != "true" or inner == ""):
+                    return True
+            except Exception:
+                pass
+            # JS fallback
+            try:
+                driver.execute_script(
+                    "arguments[0].value = ''; arguments[0].dispatchEvent(new Event('input', {bubbles:true})); arguments[0].dispatchEvent(new Event('change', {bubbles:true}));",
+                    box,
                 )
-                driver.execute_script(set_js, box, text)
-                ActionChains(driver).move_to_element(box).send_keys(Keys.RETURN).perform()
-                return
-            except Exception as e2:
-                logger.error(f"Fallback JS typing failed: {e2}")
-                raise
-
-    # --- element snapshot helpers (index-aware) ---
-    def _snapshot_texts() -> list[str]:
-        """Return current list of element texts (stripped) for all matched response elements."""
-        try:
-            elems = driver.find_elements(By.XPATH, response_xpath)
-        except Exception:
-            return []
-        texts = []
-        for el in elems:
+                time.sleep(0.06)
+                val = (box.get_attribute("value") or "").strip()
+                inner = (box.get_attribute("innerText") or box.get_attribute("textContent") or "").strip()
+                if val == "" and inner == "":
+                    return True
+            except Exception:
+                pass
             try:
-                texts.append((el.text or "").strip())
-            except StaleElementReferenceException:
-                texts.append("")  # conservative fallback
-        return texts
+                driver.execute_script(
+                    "arguments[0].innerText = ''; arguments[0].textContent = ''; arguments[0].dispatchEvent(new Event('input', {bubbles:true}));",
+                    box,
+                )
+                time.sleep(0.06)
+                inner = (box.get_attribute("innerText") or box.get_attribute("textContent") or "").strip()
+                if inner == "":
+                    return True
+            except Exception:
+                pass
+            logger.debug("Unable to fully clear input element prior to sending.")
+            return False
 
-    def _find_changed_index(pre_list: list[str], cur_list: list[str]) -> int | None:
-        """
-        Return the index of the first changed element (text differs) OR index of first appended element.
-        If nothing changed, return None.
-        """
-        # appended?
-        if len(cur_list) > len(pre_list):
-            return len(cur_list) - 1
-        # changed in-place?
-        common = min(len(pre_list), len(cur_list))
-        for i in range(common):
-            if pre_list[i] != cur_list[i]:
-                return i
-        return None
+        def _type_into_input(box, text):
+            try:
+                for chunk in split_message(text):
+                    box.send_keys(chunk)
+                    box.send_keys(Keys.SHIFT + Keys.RETURN)
+                    time.sleep(0.15)
+                # final Enter -- if UI has a send button we will click it instead later
+                box.send_keys(Keys.RETURN)
+                return
+            except (InvalidElementStateException, WebDriverException) as e:
+                logger.debug(f"send_keys failed, falling back to JS. Error: {e}")
+                try:
+                    set_js = (
+                        "arguments[0].value = arguments[1];"
+                        "arguments[0].dispatchEvent(new Event('input', {bubbles:true}));"
+                        "arguments[0].dispatchEvent(new Event('change', {bubbles:true}));"
+                    )
+                    driver.execute_script(set_js, box, text)
+                    ActionChains(driver).move_to_element(box).send_keys(Keys.RETURN).perform()
+                    return
+                except Exception as e2:
+                    logger.error(f"Fallback JS typing failed: {e2}")
+                    raise
 
-    def _wait_for_change_and_stability(pre_snapshot: list[str]) -> str | None:
-        """
-        Wait until a change is detected (append or in-place update) and then wait for it to stabilize.
-        Returns the stable text of the changed/added element, or None on timeout.
-        """
-        start_time = time.time()
-        # Phase 1: wait for any change
-        changed_index = None
-        cur_snapshot = pre_snapshot
-        while time.time() - start_time < response_timeout:
-            cur_snapshot = _snapshot_texts()
-            changed_index = _find_changed_index(pre_snapshot, cur_snapshot)
-            if changed_index is not None:
-                logger.debug(f"[{app_name}] Detected change at index {changed_index} (pre_count={len(pre_snapshot)} cur_count={len(cur_snapshot)})")
-                break
-            time.sleep(poll_interval)
+        # --- element snapshot helpers (index-aware) ---
+        def _snapshot_texts() -> list[str]:
+            """Return current list of element texts (stripped) for all matched response elements."""
+            try:
+                elems = driver.find_elements(By.XPATH, response_xpath)
+            except Exception:
+                return []
+            texts = []
+            for el in elems:
+                try:
+                    texts.append((el.text or "").strip())
+                except StaleElementReferenceException:
+                    texts.append("")  # conservative fallback
+            return texts
 
-        if changed_index is None:
+        def _find_changed_index(pre_list: list[str], cur_list: list[str]) -> int | None:
+            """
+            Return the index of the first changed element (text differs) OR index of first appended element.
+            If nothing changed, return None.
+            """
+            # appended?
+            if len(cur_list) > len(pre_list):
+                return len(cur_list) - 1
+            # changed in-place?
+            common = min(len(pre_list), len(cur_list))
+            for i in range(common):
+                if pre_list[i] != cur_list[i]:
+                    return i
             return None
 
-        # Phase 2: wait for stability of that element's text
-        last_text = cur_snapshot[changed_index] if changed_index < len(cur_snapshot) else ""
-        last_change = time.time()
-        while time.time() - start_time < response_timeout:
-            time.sleep(poll_interval)
-            cur_snapshot = _snapshot_texts()
-            # if changed_index disappeared, try to treat last element as the target
-            if changed_index >= len(cur_snapshot):
-                # element removed? return most-recent last element if present
-                if cur_snapshot:
-                    candidate = cur_snapshot[-1]
+        def _wait_for_change_and_stability(pre_snapshot: list[str]) -> str | None:
+            """
+            Wait until a change is detected (append or in-place update) and then wait for it to stabilize.
+            Returns the stable text of the changed/added element, or None on timeout.
+            """
+            start_time = time.time()
+            # Phase 1: wait for any change
+            changed_index = None
+            cur_snapshot = pre_snapshot
+            while time.time() - start_time < response_timeout:
+                cur_snapshot = _snapshot_texts()
+                changed_index = _find_changed_index(pre_snapshot, cur_snapshot)
+                if changed_index is not None:
+                    logger.debug(f"[{app_name}] Detected change at index {changed_index} (pre_count={len(pre_snapshot)} cur_count={len(cur_snapshot)})")
+                    break
+                time.sleep(poll_interval)
+
+            if changed_index is None:
+                return None
+
+            # Phase 2: wait for stability of that element's text
+            last_text = cur_snapshot[changed_index] if changed_index < len(cur_snapshot) else ""
+            last_change = time.time()
+            while time.time() - start_time < response_timeout:
+                time.sleep(poll_interval)
+                cur_snapshot = _snapshot_texts()
+                # if changed_index disappeared, try to treat last element as the target
+                if changed_index >= len(cur_snapshot):
+                    # element removed? return most-recent last element if present
+                    if cur_snapshot:
+                        candidate = cur_snapshot[-1]
+                    else:
+                        candidate = last_text
                 else:
-                    candidate = last_text
-            else:
-                candidate = cur_snapshot[changed_index]
+                    candidate = cur_snapshot[changed_index]
 
-            if candidate != last_text:
-                last_text = candidate
-                last_change = time.time()
-                logger.debug(f"[{app_name}] Change detected; waiting for stability. New text len={len(last_text)}")
-                continue
+                if candidate != last_text:
+                    last_text = candidate
+                    last_change = time.time()
+                    logger.debug(f"[{app_name}] Change detected; waiting for stability. New text len={len(last_text)}")
+                    continue
 
-            # unchanged since last poll -> check stability window
-            wait_time = time.time() - last_change
-            if wait_time >= stability_window:
-                return last_text.strip()
-        # timed out, return last seen
-        return last_text.strip()
+                # unchanged since last poll -> check stability window
+                wait_time = time.time() - last_change
+                if wait_time >= stability_window:
+                    return last_text.strip()
+            # timed out, return last seen
+            return last_text.strip()
 
-    # -------------- main retry loop -------------- #
-    last_exception = None
-    for attempt in range(1, max_retries + 1):
-        try:
-            if not check_and_recover_connection(driver):
-                return "No response: Internet unavailable"
-
-            logger.info(f"[{app_name}] Attempt {attempt}: preparing to send prompt.")
-            logger.info(f"Sending prompt to the bot: {prompt}")
-
-            # Baseline snapshot BEFORE sending (index-aware)
-            pre_snapshot = _snapshot_texts()
-            logger.debug(f"[{app_name}] pre_snapshot count={len(pre_snapshot)}; preview={pre_snapshot[-1] if pre_snapshot else None}")
-
-            # Ensure input is interactable and cleared before every attempt
-            box = _ensure_input_interactable(timeout=12)
-            cleared = _clear_input(box)
-            if not cleared:
-                logger.debug(f"[{app_name}] input not verified cleared (attempt {attempt}); proceeding anyway.")
-
-            # Type the prompt (primary) and optionally click send-button if provided
-            _type_into_input(box, prompt)
-            if send_button_xpath:
-                try:
-                    btn = driver.find_element(By.XPATH, send_button_xpath)
-                    if btn.is_displayed() and btn.is_enabled():
-                        btn.click()
-                        logger.debug(f"[{app_name}] Clicked send button.")
-                except Exception as e:
-                    logger.debug(f"[{app_name}] send_button click failed: {e}")
-
-            # Wait for any change (append or update) and for it to stabilize
-            start_wait = time.time()
-            final_text = _wait_for_change_and_stability(pre_snapshot)
-            elapsed = time.time() - start_wait
-
-            if final_text:
-                logger.info(f"[{app_name}] Received final response (len={len(final_text)})")
-                logger.info("(Waited: %.2fs) Received response from %s: %s", elapsed, app_name, final_text)
-                return final_text
-
-            logger.warning(f"[{app_name}] No new response after {response_timeout}s (attempt {attempt}).")
-
-        except Exception as e:
-            last_exception = e
-            logger.exception(f"[{app_name}] attempt {attempt}/{max_retries} raised exception: {e}")
-            # save minimal debug info (counts + last exception)
+        # -------------- main retry loop -------------- #
+        last_exception = None
+        for attempt in range(1, max_retries + 1):
             try:
-                cur_count = len(driver.find_elements(By.XPATH, response_xpath))
-            except Exception:
-                cur_count = -1
-            logger.error(f"[{app_name}] Debug: response_xpath matches {cur_count} elements")
-            # (optional) save screenshot / page source here if you want deeper debug
+                if not check_and_recover_connection(driver):
+                    return "No response: Internet unavailable"
 
-        # small backoff before retry
-        if attempt < max_retries:
-            time.sleep(1.2)
+                logger.info(f"[{app_name}] Attempt {attempt}: preparing to send prompt.")
+                logger.info(f"Sending prompt to the bot: {prompt}")
 
-    # final failure
-    if last_exception:
-        logger.error(f"[{app_name}] Last exception before giving up: {traceback.format_exception_only(type(last_exception), last_exception)}")
-    return "No response received"
+                # Baseline snapshot BEFORE sending (index-aware)
+                pre_snapshot = _snapshot_texts()
+                logger.debug(f"[{app_name}] pre_snapshot count={len(pre_snapshot)}; preview={pre_snapshot[-1] if pre_snapshot else None}")
+
+                # Ensure input is interactable and cleared before every attempt
+                box = _ensure_input_interactable(timeout=12)
+                cleared = _clear_input(box)
+                if not cleared:
+                    logger.debug(f"[{app_name}] input not verified cleared (attempt {attempt}); proceeding anyway.")
+
+                # Type the prompt (primary) and optionally click send-button if provided
+                _type_into_input(box, prompt)
+                if send_button_xpath:
+                    try:
+                        btn = driver.find_element(By.XPATH, send_button_xpath)
+                        if btn.is_displayed() and btn.is_enabled():
+                            btn.click()
+                            logger.debug(f"[{app_name}] Clicked send button.")
+                    except Exception as e:
+                        logger.debug(f"[{app_name}] send_button click failed: {e}")
+
+                # Wait for any change (append or update) and for it to stabilize
+                start_wait = time.time()
+                final_text = _wait_for_change_and_stability(pre_snapshot)
+                elapsed = time.time() - start_wait
+
+                if final_text:
+                    logger.info(f"[{app_name}] Received final response (len={len(final_text)})")
+                    logger.info("(Waited: %.2fs) Received response from %s: %s", elapsed, app_name, final_text)
+                    return final_text
+
+                logger.warning(f"[{app_name}] No new response after {response_timeout}s (attempt {attempt}).")
+
+            except Exception as e:
+                last_exception = e
+                logger.exception(f"[{app_name}] attempt {attempt}/{max_retries} raised exception: {e}")
+                # save minimal debug info (counts + last exception)
+                try:
+                    cur_count = len(driver.find_elements(By.XPATH, response_xpath))
+                except Exception:
+                    cur_count = -1
+                logger.error(f"[{app_name}] Debug: response_xpath matches {cur_count} elements")
+                # (optional) save screenshot / page source here if you want deeper debug
+
+            # small backoff before retry
+            if attempt < max_retries:
+                time.sleep(1.5)
+
+        # final failure
+        if last_exception:
+            logger.error(f"[{app_name}] Last exception before giving up: {traceback.format_exception_only(type(last_exception), last_exception)}")
+        return "No response received"
+    
+    elif app_name.lower() == "farmerchat":
+
+        shadow_root_element = chat_cfg.get("shadow_root_element")
+        prompt_input_box_element = chat_cfg.get("prompt_input_box_element")
+        agent_response_element = chat_cfg.get("agent_response_element")
+
+        def wait_for_completion(driver, shadow_host, prev_resp, prev_audio, timeout=60):
+            start = time.time()
+
+            while time.time() - start < timeout:
+                counts = driver.execute_script("""
+                const host = arguments[0];
+                const selector = arguments[1];
+
+                const responses = host.shadowRoot.querySelectorAll(selector).length;
+                const audios = host.shadowRoot.querySelectorAll('audio').length;
+
+                return {responses: responses, audios: audios};
+                """, shadow_host, agent_response_element)
+
+                if counts["responses"] > prev_resp and counts["audios"] > prev_audio:
+                    return True
+
+                time.sleep(5)
+
+            return False
+
+        def get_shadow_host(driver):
+
+            # switch to iframe
+            iframes = driver.find_elements(By.TAG_NAME, f"{shadow_root_element}")
+            if iframes:
+                driver.switch_to.frame(iframes[0])
+
+            shadow_host = driver.execute_script("""
+                return Array.from(document.querySelectorAll('*')).find(el => el.shadowRoot);
+            """)
+
+            return shadow_host
+
+        def send_prompt(driver, shadow_host, message_text):
+
+            textarea = driver.execute_script(f"""
+            const host = arguments[0];
+            const prompt_input_box_element = arguments[1];
+            return host.shadowRoot.querySelector(prompt_input_box_element);
+            """, shadow_host, prompt_input_box_element)
+
+            textarea.send_keys(message_text)
+            textarea.send_keys(Keys.ENTER)
+
+        def get_response(driver, shadow_host):
+
+            extract_script = """
+            const host = arguments[0];
+            const selector = arguments[1];
+
+            const responses = host.shadowRoot.querySelectorAll(selector);
+
+            if (responses.length === 0) {
+                return "";
+            }
+
+            return responses[responses.length - 1].innerText;
+            """
+
+            return driver.execute_script(extract_script, shadow_host, agent_response_element).strip()
+
+        last_exception = None
+        for attempt in range(1, max_retries + 1):
+            try: 
+                shadow_host = get_shadow_host(driver)
+
+                if not shadow_host:
+                    print("Shadow host not found")
+                    return "No response received"
+
+                prev_response_count = driver.execute_script(f"""
+                const host = arguments[0];
+                return host.shadowRoot.querySelectorAll('{agent_response_element}').length;
+                """, shadow_host)
+
+                prev_audio_count = driver.execute_script("""
+                const host = arguments[0];
+                return host.shadowRoot.querySelectorAll('audio').length;
+                """, shadow_host)
+
+                shadow_host = get_shadow_host(driver)
+                send_prompt(driver, shadow_host, prompt)
+                logger.info(f"Sent prompt to FarmerChat: {prompt}")
+
+                shadow_host = get_shadow_host(driver)
+                wait_for_completion(driver, shadow_host, prev_response_count, prev_audio_count)
+
+                shadow_host = get_shadow_host(driver)
+                bot_reply = get_response(driver, shadow_host)
+                logger.info(f"Received response from FarmerChat: {bot_reply}")
+                return bot_reply.strip()
+
+            except Exception as e:
+                logger.error(f"Attempt {attempt} failed for FarmerChat: {e}")
+                if attempt < max_retries:
+                    logger.info("Retrying...")
+                    # save minimal debug info (counts + last exception)
+                    try:
+                        cur_count = driver.execute_script("""
+                            const host = arguments[0];
+                            const selector = arguments[1];
+                            return host.shadowRoot.querySelectorAll(selector).length;
+                            """, shadow_host, agent_response_element)
+                    except Exception:
+                        cur_count = -1
+                    logger.error(f"[{app_name}] Debug: response_xpath matches {cur_count} elements")
+                    time.sleep(1.5)
+                else:
+                    logger.error("Max retries reached for FarmerChat. Aborting.")
+                    return "No response received"
+        
+            # final failure
+            if last_exception:
+                logger.error(f"[{app_name}] Last exception before giving up: {traceback.format_exception_only(type(last_exception), last_exception)}")
+            return "No response received"
+
+    else:
+        logger.error(f"send_message not implemented for app: {app_name}")
+        return "No response received"
