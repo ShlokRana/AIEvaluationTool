@@ -1,14 +1,14 @@
 {
     "base_url": "http://localhost:8000",
-    "application_type": "WHATSAPP_WEB",
+    "application_type": "WebApp",
     "debug": "True",
     "ollama_server_url": "http://localhost:11434",
     "server_url": "http://localhost:3000",
     "whatsapp_url": "https://web.whatsapp.com",
     "action": "send_all_prompts",
     "run_mode": "single_window",
-    "agent_name": "Vaidya AI",
-    "application_name": "Vaidya AI",
-    "application_url": "https://web.whatsapp.com/",
+    "agent_name": "FarmerChat",
+    "application_name": "FarmerChat",
+    "application_url": "https://www-help-gooey-ai.filesusr.com/html/18ec4d_3005ee787398e60b1e5b118078b53f5b.html",
     "headless": "False"
 }

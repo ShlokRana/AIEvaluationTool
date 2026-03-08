@@ -26,17 +26,20 @@ import json
 router = APIRouter()
 logger = get_logger("main")
 
-# old one
-# class PromptCreate(BaseModel):
-#     chat_id: int
-#     prompt_list: List[str]
-
 # new one
 class PromptCreate(BaseModel):
     chat_id: int
     prompt_list: List[str]
     api_context: Optional[Dict[str, Any]] = None
 
+# For audio input, we can extend the PromptCreate model like this:
+class PromptCreate(BaseModel):
+    chat_id: int
+    prompt_list: List[str]
+    is_voice: bool = False
+    audio_path: Optional[str] = None
+    return_voice: bool = False
+    api_context: Optional[Dict[str, Any]] = None
 
 # -------------------------------
 # Helpers

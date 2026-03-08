@@ -20,7 +20,10 @@ from selenium.common.exceptions import (
 from selenium.webdriver.common.action_chains import ActionChains
 from webdriver_manager.chrome import ChromeDriverManager
 import traceback
-from lib.strategy.utils_new import test_chrome_driver_compatibility
+from pathlib import Path
+import sounddevice as sd
+import soundfile as sf
+
 
 from logger import get_logger
 
@@ -54,10 +57,18 @@ class DriverManager:
         self.close_chrome_with_profile()
 
         logger.info(f"Launching {app_name} at {url}")
+        
+        # Setting up a consistent download directory for all apps using this driver instance.
+        download_dir = Path.cwd().parents[2] / "downloads" 
 
         opts = Options()
         opts.add_argument("--no-sandbox")
         opts.add_argument("--start-maximized")
+        prefs = {
+            "download.default_directory": str(download_dir),
+            "profile.default_content_setting_values.media_stream_mic": 1
+        }
+        opts.add_experimental_option("prefs", prefs)
         mode = load_json('config.json').get('headless', 'False')
         # to turn off headless mode - remove the below line or comment it out.
         if mode == "True":
