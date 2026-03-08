@@ -1,0 +1,7 @@
+asr:
+  engine: whisper      # whisper (small) | indic (IndicConformer)
+  model_size: small
+
+tts:
+  engine: sarvam       # sarvam (bulbul v3) | parler (Indic Parler) | svara # sarvam is better but paisa
+  api_key: sk_5l1rd7i5_PDy3NUqEsdm5ZawDcv0IA31n      # only for sarvam

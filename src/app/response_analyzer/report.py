@@ -31,6 +31,7 @@ def main():
     parser.add_argument("--run-name", "-r", dest="run_name", type=str, help="Name of the run to evaluate")
     parser.add_argument("--force", "-f", dest="force", default=False, action="store_true", help="Force evaluation of already evaluated runs")
     parser.add_argument("--get-report", "-R", dest="get_report", action="store_true", help="Flag to generate PDF report after evaluation")
+    parser.add_argument("--tone", "-t", dest="tone", type=str, help="Tone for the summary")
 
     args = parser.parse_args()
 

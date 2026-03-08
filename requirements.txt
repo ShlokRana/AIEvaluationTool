@@ -72,3 +72,6 @@ bert-extractive-summarizer
 #pkg_resources
 
 mariadb
+openai-whisper
+parler-tts
+snac
