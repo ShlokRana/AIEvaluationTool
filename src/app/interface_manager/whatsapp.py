@@ -42,30 +42,62 @@ def search_llm(driver: webdriver.Chrome) -> bool:
     return search_entity(driver, "whatsapp_web")
 
 
-def send_whatsapp_message(driver: webdriver.Chrome, prompt: str) -> str:
-    """Send a message to WhatsApp Web using generic send_message."""
-    return send_message_whatsapp(driver, prompt)
+def send_whatsapp_message(
+    driver: webdriver.Chrome,
+    prompt: str | None = None,
+    audio_path: str | None = None,
+    is_audio: bool = False
+):
+    """Send text or audio message to WhatsApp Web."""
+
+    if is_audio:
+        return send_message_whatsapp(driver, audio_path=audio_path, is_audio=True)
+    else:
+        return send_message_whatsapp(driver, prompt)
 
 
-def send_prompt_whatsapp(chat_id: int, prompt_list: list[str]) -> list[dict]:
-    """Send multiple prompts to WhatsApp Web and collect responses."""
+def send_prompt_whatsapp(
+    chat_id: int,
+    prompt_list: list[str] | None = None,
+    audio_path: str | None = None,
+    return_voice: bool = False
+) -> list[dict]:
+
     results = []
     driver = login_whatsapp()
+
     if not driver:
-        logger.error("Could not initialize WhatsApp Web driver.")
-        return [{"chat_id": chat_id, "prompt": p, "response": "No response received"} for p in prompt_list]
+        return [{"chat_id": chat_id, "response": "No response received"}]
 
     try:
         if not search_llm(driver):
-            logger.error("Could not open chat with LLM contact.")
-            return [{"chat_id": chat_id, "prompt": p, "response": "No response received"} for p in prompt_list]
+            return [{"chat_id": chat_id, "response": "No response received"}]
 
-        for prompt in prompt_list:
-            response = send_whatsapp_message(driver, prompt)
-            results.append({"chat_id": chat_id, "prompt": prompt, "response": response})
+        if audio_path:
+            response = send_message_whatsapp(
+                driver,
+                audio_path=audio_path,
+                is_audio=True
+            )
+
+            results.append({
+                "chat_id": chat_id,
+                "response": response
+            })
+
+            return results
+
+        for prompt in prompt_list or []:
+            response = send_message_whatsapp(driver, prompt=prompt)
+
+            results.append({
+                "chat_id": chat_id,
+                "prompt": prompt,
+                "response": response
+            })
 
     finally:
-        pass  # keep driver alive for reuse
+        pass
 
     return results
 

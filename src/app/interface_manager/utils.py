@@ -31,7 +31,23 @@ def load_json(file_path):
     with open(file_path, 'r', encoding='utf-8') as f:
         return json.load(f)
 
+def wait_until_complete(filepath):
+    last_size = -1
+
+    while True:
+        current_size = os.path.getsize(filepath)
+
+        if current_size == last_size:
+            break
+
+        last_size = current_size
+        time.sleep(1)
+
 logger = get_logger("interface_manager")
+
+# Setting up a consistent download directory for all apps using this driver instance.
+download_dir = Path.cwd().parents[2] / "agent_response_cache" 
+os.makedirs(download_dir, exist_ok=True)
 
 # --------------------------------------------------------------------
 # Driver Management
@@ -57,16 +73,14 @@ class DriverManager:
         self.close_chrome_with_profile()
 
         logger.info(f"Launching {app_name} at {url}")
-        
-        # Setting up a consistent download directory for all apps using this driver instance.
-        download_dir = Path.cwd().parents[2] / "downloads" 
 
         opts = Options()
         opts.add_argument("--no-sandbox")
         opts.add_argument("--start-maximized")
         prefs = {
             "download.default_directory": str(download_dir),
-            "profile.default_content_setting_values.media_stream_mic": 1
+            "profile.default_content_setting_values.media_stream_mic": 1,
+            "download.directory_upgrade": True
         }
         opts.add_experimental_option("prefs", prefs)
         mode = load_json('config.json').get('headless', 'False')
@@ -400,7 +414,7 @@ def search_entity(driver: webdriver.Chrome, app_name: str) -> bool:
 def split_message(message, max_length=1000):
     return [message[i:i + max_length] for i in range(0, len(message), max_length)]
 
-def send_message_whatsapp(driver: webdriver.Chrome, prompt: str):
+def send_message_whatsapp(driver: webdriver.Chrome, prompt: str = None, audio_path: str = None, is_audio: bool= False):
     """
     Sends a prompt to WhatsApp Web and retrieves responses after the last sent message.
     """
@@ -412,93 +426,177 @@ def send_message_whatsapp(driver: webdriver.Chrome, prompt: str):
 
     while attempt < max_retries:
         try:
-            if not check_and_recover_connection():
-                logger.warning("No internet connection available.")
-                return "No response received"
-            
-            logger.info(f"Sending prompt to the bot: {prompt}")
-            # @bugfix.  The XPath has changed! -- Sudar 02.08.2025
-            #message_box_xpath = '//div[@aria-label="Type a message" and @contenteditable="true"]'
-            message_box_xpath = chat_cfg["prompt_input_box_element"]
-            message_box = WebDriverWait(driver, 2).until(
-                EC.presence_of_element_located((By.XPATH, message_box_xpath))
-            )
-            message_box.clear()
-            message_box.click()
-            chunks = split_message(prompt)
-            
-            for chunk in chunks:
-                message_box.send_keys(chunk)
-                message_box.send_keys(Keys.SHIFT + Keys.ENTER)
-                time.sleep(0.5)
-            message_box.send_keys(Keys.RETURN)
+            wait = WebDriverWait(driver, 30)
 
-            #time.sleep(5)  # Wait for the message to be sent and responses to arrive
-            old_response_texts = []
-            response_texts = []
-
-            # setup the wait time counter.
-            wait_time = 0 # seconds
-
-            # wait for the responses from the agent for a maximum of 30 seconds
-            while "".join(old_response_texts) != "".join(response_texts) or len(response_texts) == 0:
-                if wait_time > 30:
-                    logger.warning("No new responses received after 30 seconds. Exiting response retrieval loop.")
-                    break
-                time.sleep(2)  # Wait for responses to appear
-                wait_time += 2
-
-                wait = WebDriverWait(driver, 30)
-                message_in = chat_cfg["message_in_element"]
-                message_out = chat_cfg["message_out_element"]
-                all_messages = wait.until(
-                    EC.presence_of_all_elements_located(
-                        (By.XPATH, f"{message_in} | {message_out}")
-                    )
+            if not is_audio:
+                if not check_and_recover_connection():
+                    logger.warning("No internet connection available.")
+                    return {
+                        "type": "error",
+                        "content": "No response received"
+                    }
+                
+                logger.info(f"Sending text prompt to the bot: {prompt}")
+                # @bugfix.  The XPath has changed! -- Sudar 02.08.2025
+                #message_box_xpath = '//div[@aria-label="Type a message" and @contenteditable="true"]'
+                message_box_xpath = chat_cfg["prompt_input_box_element"]
+                message_box = WebDriverWait(driver, 2).until(
+                    EC.presence_of_element_located((By.XPATH, message_box_xpath))
                 )
+                message_box.clear()
+                message_box.click()
+                chunks = split_message(prompt)
+                
+                for chunk in chunks:
+                    message_box.send_keys(chunk)
+                    message_box.send_keys(Keys.SHIFT + Keys.ENTER)
+                    time.sleep(0.5)
+                message_box.send_keys(Keys.RETURN)
 
-                outgoing_msgs = driver.find_elements(By.XPATH, message_out)
-                if not outgoing_msgs:
-                    raise Exception("No outgoing messages found.")
-
-                last_outgoing = outgoing_msgs[-1]
-
-                try:
-                    last_index = next(
-                        i for i, msg in enumerate(all_messages) if msg == last_outgoing
-                    )
-                except StopIteration:
-                    raise Exception(
-                        "Last outgoing message not found in all_messages list."
-                    )
-
-                responses_after = all_messages[last_index + 1:]
-                responses = [
-                    msg
-                    for msg in responses_after
-                    if "message-in" in str(msg.get_attribute("class"))
-                ]
-
-                old_response_texts = response_texts.copy()
+                #time.sleep(5)  # Wait for the message to be sent and responses to arrive
+                old_response_texts = []
                 response_texts = []
-                selectable_text = chat_cfg["agent_response_element"]
-                for msg in responses:
-                    try:
-                        text_elem = msg.find_element(By.XPATH, selectable_text)
-                        text = text_elem.text.strip()
-                        if text:
-                            response_texts.append(text)
-                            logger.info(f"(Waited:{wait_time}) Received response from WhatsApp: %s", text)
-                    except Exception as e:
-                        logger.debug("Could not read response message: %s", e)
-                        continue
 
-            if response_texts:
-                combined_response = " ".join(response_texts)
-                return combined_response
+                # setup the wait time counter.
+                wait_time = 0 # seconds
+
+                # wait for the responses from the agent for a maximum of 30 seconds
+                while "".join(old_response_texts) != "".join(response_texts) or len(response_texts) == 0:
+                    if wait_time > 30:
+                        logger.warning("No new responses received after 30 seconds. Exiting response retrieval loop.")
+                        break
+                    time.sleep(2)  # Wait for responses to appear
+                    wait_time += 2
+
+                    wait = WebDriverWait(driver, 30)
+                    message_in = chat_cfg["message_in_element"]
+                    message_out = chat_cfg["message_out_element"]
+                    all_messages = wait.until(
+                        EC.presence_of_all_elements_located(
+                            (By.XPATH, f"{message_in} | {message_out}")
+                        )
+                    )
+
+                    outgoing_msgs = driver.find_elements(By.XPATH, message_out)
+                    if not outgoing_msgs:
+                        raise Exception("No outgoing messages found.")
+
+                    last_outgoing = outgoing_msgs[-1]
+
+                    try:
+                        last_index = next(
+                            i for i, msg in enumerate(all_messages) if msg == last_outgoing
+                        )
+                    except StopIteration:
+                        raise Exception(
+                            "Last outgoing message not found in all_messages list."
+                        )
+
+                    responses_after = all_messages[last_index + 1:]
+                    responses = [
+                        msg
+                        for msg in responses_after
+                        if "message-in" in str(msg.get_attribute("class"))
+                    ]
+
+                    old_response_texts = response_texts.copy()
+                    response_texts = []
+                    selectable_text = chat_cfg["agent_response_element"]
+                    for msg in responses:
+                        try:
+                            text_elem = msg.find_element(By.XPATH, selectable_text)
+                            text = text_elem.text.strip()
+                            if text:
+                                response_texts.append(text)
+                                logger.info(f"(Waited:{wait_time}) Received response from WhatsApp: %s", text)
+                        except Exception as e:
+                            logger.debug("Could not read response message: %s", e)
+                            continue
+
+                if response_texts:
+                    return {
+                        "type": "text",
+                        "content": " ".join(response_texts)
+                    }
+                else:
+                    logger.warning("No response message received from whatsapp.")
+                    return {
+                        "type": "error",
+                        "content": "No response received"
+                    }
             else:
-                logger.warning("No response message received from whatsapp.")
-                return "No response received"
+                if not check_and_recover_connection():
+                    logger.warning("No internet connection available.")
+                    return {
+                        "type": "error",
+                        "content": "No response received"
+                    }
+                
+                logger.info(f"Sending audio prompt to the bot: {prompt}")
+
+                # Click the audio record button
+                audio_button_xpath = chat_cfg["audio_record_button_element"]
+
+                # More reliable selector for audio message container
+                audio_msg_xpath = chat_cfg['audio_message_element']  # Parent container of audio element
+
+                # record current audio count
+                old_audio_count = len(driver.find_elements(By.XPATH, audio_msg_xpath))
+                
+                audio_button = WebDriverWait(driver, 20).until(
+                    EC.element_to_be_clickable((By.XPATH, audio_button_xpath))
+                )
+                audio_button.click()
+
+                data, sr = sf.read(audio_path, dtype="float32")
+                logger.info(f"Playing audio with sample rate: {sr} Hz")
+                sd.play(data, sr)
+                sd.wait()  # wait until playback finishes
+                logger.info("Playback finished")
+                time.sleep(1)  # Short delay to ensure the audio is fully processed
+                send_button = driver.find_element(
+                    By.XPATH,
+                    chat_cfg["send_button_element"]
+                )
+                send_button.click()
+                
+                # wait until a new audio message appears
+                wait.until(lambda d: len(d.find_elements(By.XPATH, audio_msg_xpath)) > old_audio_count)
+
+                all_audios = driver.find_elements(By.XPATH, audio_msg_xpath)
+                last_audio = all_audios[-1]
+
+                ActionChains(driver).move_to_element(last_audio).perform()
+
+                chervon_xpath = last_audio.find_element(By.XPATH, chat_cfg["download_menu_element"])
+                if chervon_xpath:
+                    chervon_xpath.click()  # Click the chevron to ensure the message is fully loaded and options are available
+                    logger.debug("Found chevron icon, audio message is likely fully loaded and ready for download.")
+                    logger.info("Audio message is ready for download.")
+
+                    before = set(os.listdir(download_dir))
+
+                    # Broader selector for download button in context menu
+                    download_btn = wait.until(EC.element_to_be_clickable(
+                        (By.XPATH, chat_cfg["download_button_element"])
+                    ))
+                    download_btn.click()
+                    
+                    logger.info(f"Success: Audio from is downloading.")
+                    while True:
+                        after = set(os.listdir(download_dir))
+                        new_files = after - before
+                        if new_files:
+                            file = new_files.pop()
+                            if not file.endswith(".crdownload"):
+                                logger.info(f"Downloaded successfully in {file}")
+                                return {
+                                    "type": "audio",
+                                    "content": "audio downloaded successfully",
+                                    "file": os.path.join(download_dir, file)
+                                    }
+                else:            
+                    logger.error("Audio message found but play icon is missing. It may not be fully loaded.")
 
         except Exception as e:
             attempt += 1
@@ -508,7 +606,10 @@ def send_message_whatsapp(driver: webdriver.Chrome, prompt: str):
                 time.sleep(0.3)
             else:
                 logger.error("Max chat retries reached. Aborting.")
-                return "No response received"
+                return {
+                    "type": "error",
+                    "content": "No response received"
+                }
 
 def send_message_webapp(
     driver: webdriver.Chrome,

@@ -33,7 +33,21 @@ def is_error_response(response):
         "[error: connection refused]",
         "no response received"
     ]
-    return len(response) == 0 or any(indicator in response[0]['response'].lower() for indicator in error_indicators)
+
+    if not response:
+        return True
+
+    resp = response[0].get("response", "")
+
+    # Handle structured responses
+    if isinstance(resp, dict):
+        text = resp.get("content", "")
+    else:
+        text = resp
+
+    text = str(text).lower()
+
+    return any(indicator in text for indicator in error_indicators)
 
 def main():
     """ Main function to handle command-line arguments and execute test cases.
@@ -141,6 +155,9 @@ def main():
 
         # SQLite requires a file URL
         db_url = f"sqlite:///{db_path}"
+
+        AUDIO_DIR =  os.path.join(project_root,"audio_cache")
+        os.makedirs(AUDIO_DIR, exist_ok=True)
 
     else:
         # Original MariaDB path (fallback)
@@ -453,20 +470,47 @@ def main():
 
                         if args.voice:
                             try:
-                                req = {"text" : message_to_agent}
-                                print(req)
-                                response = requests.post(f"{os.getenv("GPU_URL")}/tts" , params=req)
-                                if response.status_code == 200:
-                                    with open("temp.wav", "wb") as f:
-                                        f.write(response.content)
-                                    logger.info("The text has been transcribed.")
-                                else:
-                                    logger.error(f"Failed to transcribe text to audio. Status code: {response.status_code}, Response: {response.text}")
-                            except Exception as e:
-                                logger.error("Could not convert the text to an audio file.", e)
+                                req = {"text": message_to_agent}
+                                response = requests.post(
+                                    f"{os.getenv('GPU_URL')}/tts",
+                                    params=req
+                                )
 
-                        response_from_agent = client.chat(chat_id = testcase.testcase_id, prompt_list=[message_to_agent])
-                        agent_response = response_from_agent.json().get("response", "")
+                                if response.status_code == 200:
+                                    filename = f"tts_{testcase.testcase_id}.wav"
+                                    audio_path = os.path.join(AUDIO_DIR, filename)
+                                    with open(audio_path, "wb") as f:
+                                        f.write(response.content)
+                                    logger.info(f"TTS audio saved at {audio_path}")
+
+                                    # send audio instead of text
+                                    response_from_agent = client.chat(
+                                        chat_id=testcase.testcase_id,
+                                        is_voice=True,
+                                        audio_path=str(audio_path)
+                                    )
+                                else:
+                                    logger.error(
+                                        f"TTS failed: {response.status_code} {response.text}"
+                                    )
+                            except Exception as e:
+                                logger.error(f"Voice pipeline failed: {e}")
+                        else:
+
+                            response_from_agent = client.chat(chat_id = testcase.testcase_id, 
+                                                            prompt_list=[message_to_agent])
+                        
+                        data = response_from_agent.json().get("response")
+
+                        if isinstance(data, dict):
+                            if data.get("type") == "text":
+                                agent_response = data.get("content", "")
+                            elif data.get("type") == "audio":
+                                agent_response = data.get("file", "")
+                            else:
+                                agent_response = ""
+                        else:
+                            agent_response = data
 
                         # Check if the response is empty or indicates a chat not found
                         # Here, we will leave the Conversation entry dangling in the DB to indicate the the conversation was not successful.
@@ -581,20 +625,47 @@ def main():
 
                         if args.voice:
                             try:
-                                req = {"text" : message_to_agent}
-                                print(req)
-                                response = requests.post(f"{os.getenv("GPU_URL")}/tts" , params=req)
-                                if response.status_code == 200:
-                                    with open("temp.wav", "wb") as f:
-                                        f.write(response.content)
-                                    logger.info("The text has been transcribed.")
-                                else:
-                                    logger.error(f"Failed to transcribe text to audio. Status code: {response.status_code}, Response: {response.text}")
-                            except Exception as e:
-                                logger.error("Could not convert the text to an audio file.", e)
+                                req = {"text": message_to_agent}
+                                response = requests.post(
+                                    f"{os.getenv('GPU_URL')}/tts",
+                                    params=req
+                                )
 
-                        response_from_agent = client.chat(chat_id = testcase.testcase_id, prompt_list=[message_to_agent])
-                        agent_response = response_from_agent.json().get("response", "")
+                                if response.status_code == 200:
+                                    filename = f"tts_{testcase.testcase_id}.wav"
+                                    audio_path = os.path.join(AUDIO_DIR, filename)
+                                    with open(audio_path, "wb") as f:
+                                        f.write(response.content)
+                                    logger.info(f"TTS audio saved at {audio_path}")
+
+                                    # send audio instead of text
+                                    response_from_agent = client.chat(
+                                        chat_id=testcase.testcase_id,
+                                        is_voice=True,
+                                        audio_path=str(audio_path)
+                                    )
+                                else:
+                                    logger.error(
+                                        f"TTS failed: {response.status_code} {response.text}"
+                                    )
+                            except Exception as e:
+                                logger.error(f"Voice pipeline failed: {e}")
+                        else:
+
+                            response_from_agent = client.chat(chat_id = testcase.testcase_id, 
+                                                            prompt_list=[message_to_agent])
+                        
+                        data = response_from_agent.json().get("response")
+
+                        if isinstance(data, dict):
+                            if data.get("type") == "text":
+                                agent_response = data.get("content", "")
+                            elif data.get("type") == "audio":
+                                agent_response = data.get("file", "")
+                            else:
+                                agent_response = ""
+                        else:
+                            agent_response = data
 
                         # Check if the response is empty or indicates a chat not found
                         # Here, we will leave the Conversation entry dangling in the DB to indicate the the conversation was not successful.
@@ -691,21 +762,47 @@ def main():
 
                         if args.voice:
                             try:
-                                req = {"text" : message_to_agent}
-                                print(req)
-                                response = requests.post(f"{os.getenv("GPU_URL")}/tts" , params=req)
-                                if response.status_code == 200:
-                                    with open("temp.wav", "wb") as f:
-                                        f.write(response.content)
-                                    logger.info("The text has been transcribed.")
-                                else:
-                                    logger.error(f"Failed to transcribe text to audio. Status code: {response.status_code}, Response: {response.text}")
-                            except Exception as e:
-                                logger.error("Could not convert the text to an audio file.", e)
+                                req = {"text": message_to_agent}
+                                response = requests.post(
+                                    f"{os.getenv('GPU_URL')}/tts",
+                                    params=req
+                                )
 
-                        # send the prompt to the agent via the interface manager client
-                        response_from_agent = client.chat(chat_id = testcase.testcase_id, prompt_list=[message_to_agent])
-                        agent_response = response_from_agent.json().get("response", "")
+                                if response.status_code == 200:
+                                    filename = "temp_tts_audio.wav"
+                                    audio_path = os.path.join(AUDIO_DIR, filename)
+                                    with open(audio_path, "wb") as f:
+                                        f.write(response.content)
+                                    logger.info(f"TTS audio saved at {audio_path}")
+
+                                    # send audio instead of text
+                                    response_from_agent = client.chat(
+                                        chat_id=testcase.testcase_id,
+                                        is_voice=True,
+                                        audio_path=str(audio_path)
+                                    )
+                                else:
+                                    logger.error(
+                                        f"TTS failed: {response.status_code} {response.text}"
+                                    )
+                            except Exception as e:
+                                logger.error(f"Voice pipeline failed: {e}")
+                        else:
+
+                            response_from_agent = client.chat(chat_id = testcase.testcase_id, 
+                                                            prompt_list=[message_to_agent])
+                        
+                        data = response_from_agent.json().get("response")
+
+                        if isinstance(data, dict):
+                            if data.get("type") == "text":
+                                agent_response = data.get("content", "")
+                            elif data.get("type") == "audio":
+                                agent_response = data.get("file", "")
+                            else:
+                                agent_response = ""
+                        else:
+                            agent_response = data
 
                         # Check if the response is empty or indicates a chat not found
                         # Here, we will leave the Conversation entry dangling in the DB to indicate the the conversation was not successful.

@@ -27,15 +27,15 @@ router = APIRouter()
 logger = get_logger("main")
 
 # new one
-class PromptCreate(BaseModel):
-    chat_id: int
-    prompt_list: List[str]
-    api_context: Optional[Dict[str, Any]] = None
+# class PromptCreate(BaseModel):
+#     chat_id: int
+#     prompt_list: List[str]
+#     api_context: Optional[Dict[str, Any]] = None
 
 # For audio input, we can extend the PromptCreate model like this:
 class PromptCreate(BaseModel):
     chat_id: int
-    prompt_list: List[str]
+    prompt_list: Optional[List[str]] = None
     is_voice: bool = False
     audio_path: Optional[str] = None
     return_voice: bool = False
@@ -88,27 +88,6 @@ def logout():
 
     return JSONResponse(content={"error": "Unsupported application type"})
 
-
-# -------------------------------
-# Chat
-# -------------------------------
-# Old one
-# @router.post("/chat")
-# async def chat(prompt: PromptCreate):
-#     app_type, app_name = get_app_info()
-
-#     if app_type == "WHATSAPP_WEB":
-#         logger.info("Chat request: WhatsApp Web")
-#         result = send_prompt_whatsapp(chat_id=prompt.chat_id, prompt_list=prompt.prompt_list)
-#         return JSONResponse(content={"response": result})
-
-#     if str.upper(app_type) == "WEBAPP":
-#         logger.info(f"Chat request: WebApp {app_name}")
-#         result = send_prompt(app_name=app_name, chat_id=prompt.chat_id, prompt_list=prompt.prompt_list)
-#         return JSONResponse(content={"response": result})
-
-#     return JSONResponse(content={"error": "Unsupported application type"})
-
 # new one
 @router.post("/chat")
 async def chat(prompt: PromptCreate):
@@ -119,10 +98,17 @@ async def chat(prompt: PromptCreate):
     # ------------------------------------------------
     if app_type == "WHATSAPP_WEB":
         logger.info("Chat request: WhatsApp Web")
-        result = send_prompt_whatsapp(
-            chat_id=prompt.chat_id,
-            prompt_list=prompt.prompt_list,
-        )
+        if prompt.is_voice:
+            result = send_prompt_whatsapp(
+                chat_id=prompt.chat_id,
+                audio_path=prompt.audio_path,
+                return_voice=True,
+            )
+        else:
+            result = send_prompt_whatsapp(
+                chat_id=prompt.chat_id,
+                prompt_list=prompt.prompt_list,
+            )
         return JSONResponse(content={"response": result})
 
     # ------------------------------------------------
@@ -130,6 +116,13 @@ async def chat(prompt: PromptCreate):
     # ------------------------------------------------
     if str.upper(app_type) == "WEBAPP":
         logger.info(f"Chat request: WebApp {app_name}")
+        if prompt.is_voice:
+            result = send_prompt(
+                chat_id=prompt.chat_id,
+                audio_path=prompt.audio_path,
+                return_voice=True,
+            )
+
         result = send_prompt(
             app_name=app_name,
             chat_id=prompt.chat_id,

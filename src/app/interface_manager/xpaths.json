@@ -9,7 +9,12 @@
         "prompt_input_box_element": "//div[@aria-placeholder='Type a message' and @contenteditable='true']",
         "agent_response_element": ".//div[contains(@class,'copyable-text')]//span[@data-testid='selectable-text']",
         "message_in_element": "//div[contains(concat(' ', normalize-space(@class), ' '), ' message-in ')]",
-        "message_out_element": "//div[contains(concat(' ', normalize-space(@class), ' '), ' message-out ')]"
+        "message_out_element": "//div[contains(concat(' ', normalize-space(@class), ' '), ' message-out ')]",
+        "audio_record_button_element": "//span[@data-icon='mic-outlined']",
+        "send_button_element": "//button[@aria-label='Send']",
+        "audio_message_element": "//div[contains(@class,'message-in') and contains(@class,'focusable-list-item')]",
+        "download_menu_element": "//span[@data-icon='ic-chevron-down-menu']",
+        "download_button_element": "//li[@role='button' and .//span[text()='Download']]"
       }
     },
     "cpgrams": 
