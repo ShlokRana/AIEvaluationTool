@@ -455,7 +455,7 @@ def main():
                             try:
                                 req = {"text" : message_to_agent}
                                 print(req)
-                                response = requests.post(f"{os.getenv("GPU_URL")}/tts" , params=req)
+                                response = requests.post(f"{os.getenv('GPU_URL')}/tts" , params=req)
                                 if response.status_code == 200:
                                     with open("temp.wav", "wb") as f:
                                         f.write(response.content)
@@ -583,7 +583,7 @@ def main():
                             try:
                                 req = {"text" : message_to_agent}
                                 print(req)
-                                response = requests.post(f"{os.getenv("GPU_URL")}/tts" , params=req)
+                                response = requests.post(f"{os.getenv('GPU_URL')}/tts" , params=req)
                                 if response.status_code == 200:
                                     with open("temp.wav", "wb") as f:
                                         f.write(response.content)
@@ -693,7 +693,7 @@ def main():
                             try:
                                 req = {"text" : message_to_agent}
                                 print(req)
-                                response = requests.post(f"{os.getenv("GPU_URL")}/tts" , params=req)
+                                response = requests.post(f"{os.getenv('GPU_URL')}/tts" , params=req)
                                 if response.status_code == 200:
                                     with open("temp.wav", "wb") as f:
                                         f.write(response.content)

@@ -36,7 +36,7 @@ from lib.utils.logger import get_logger
 app = FastAPI(title="Sarvam AI Application")
 translator = SarvamAITranslator()
 generator = SarvamAIGenerator()
-voice_layer = VoiceLayer(model="svara")
+voice_layer = VoiceLayer(tts_model="svara")
 
 safety_engine: Optional[ShieldGemmaSafety] = None
 

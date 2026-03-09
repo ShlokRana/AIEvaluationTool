@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 import re
 from langdetect import detect
+import regex as reg
 
 # Adjust the path to include the "lib" directory
 sys.path.append(os.path.dirname(__file__) + "/../../")
@@ -179,8 +180,7 @@ class VoiceLayer:
         self.logger = get_logger(__name__, loglevel=loglevel)
     
     def segs_and_langs(self, text : str):
-        text = "இந்த project ரொம்ப interesting இருக்கு, but deadline கொஞ்சம் tight."
-        # text2 = "I went to school and met my friends. நான் இன்று பள்ளிக்கு சென்று என் நண்பர்களை சந்தித்தேன். मैं आज स्कूल गया और अपने दोस्तों से मिला। ഞാൻ ഇന്ന് സ്കൂളിലേക്ക് പോയി എന്റെ സുഹൃത്തുക്കളെ കണ്ടു. ଆମେ ସନ୍ଧ୍ୟାବେଳେ ପାର୍କରେ ଘୁରିବାକୁ ଗଲୁ।"
+        text = "You are a agriculture assistant. Understand and answer the question briefly. क्या मैं जैविक तरीकों से अपनी मिट्टी की उर्वरता बढ़ा सकता हूँ? कृपया 2 उपाय बताएं और यह भी समझाएं कि ये किस वैज्ञानिक सिद्धांत पर आधारित हैं।"
 
         lang_map = {
             "as": "Assamese",
@@ -215,12 +215,12 @@ class VoiceLayer:
         ]
 
         pattern = "|".join(
-            fr"\p{{Script={s}}}+(?:\s+\p{{Script={s}}}+)*[^\p{{L}}]*"
+            fr"(?:[\p{{Script={s}}}\p{{N}}]+(?:\s+[\p{{Script={s}}}\p{{N}}]+)*)[^\p{{L}}]*"
             for s in scripts
         )
 
-        segments = re.findall(pattern, text)
-        is_eng = re.compile(r'^[A-Za-z]+$')
+        segments = reg.findall(pattern, text)
+        is_eng = reg.compile(r'^[A-Za-z]+$')
         print(segments)
         texts, langs = [], []
 
@@ -231,12 +231,12 @@ class VoiceLayer:
             if bool(is_eng.match(to_cmp)):
                 langs.append(lang_map["en"])
             else:
+                lang = "en"
                 try:
-                    lang = detect(to_cmp)
-                    langs.append(lang_map[lang])    
-                except:
-                    self.logger.debug("Deafulting to english as the language could not be detected.")
-                    langs.append(lang_map.get(lang, "English"))
+                    lang = detect(to_cmp)    
+                except Exception as e:
+                    self.logger.debug(f"The text's Language could not be detected. Defaulting to english. {e}")
+                langs.append(lang_map.get(lang, "English"))
             texts.append(s)
         return texts, langs
     
@@ -251,7 +251,7 @@ class VoiceLayer:
             return file_save_path
         
         except Exception as e:
-            self.logger.error("Could not convert to an audio file.", e)
+            self.logger.error(f"Could not convert to an audio file. {e}")
             return ""        
         
 
