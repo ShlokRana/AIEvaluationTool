@@ -60,7 +60,10 @@
       "ChatPage":{
           "shadow_root_element": "iframe",
           "prompt_input_box_element": "textarea[placeholder='Message Farmer.CHAT']",
-          "agent_response_element": ".text-reveal-container" 
+          "agent_response_element": ".text-reveal-container",
+          "mic_button_element": "div.input-right-buttons button.button-text-alt",
+          "audio_message_element": "audio",
+          "send_button_element": "button.button-text-alt svg"
       }
     }
   }

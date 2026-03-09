@@ -74,7 +74,11 @@ def search_llm(driver):
         return False
 
 
-def send_prompt(app_name: str, chat_id: int, prompt_list: List[str]) -> list[dict]:
+def send_prompt(app_name: str, 
+                chat_id: int, 
+                prompt_list: list[str] | None = None,
+                audio_path: str | None = None,
+                return_voice: bool = False) -> list[dict]:
     """
     Send prompt(s) to a web application interface and collect responses.
     """
@@ -86,35 +90,67 @@ def send_prompt(app_name: str, chat_id: int, prompt_list: List[str]) -> list[dic
     driver = driver_manager.get_driver(app_name, url)
 
     if app_name == "cpgrams":
-        # Ensure login
         logout_cfg = load_xpaths()["applications"][app_name]["LogoutPage"]
-        logger.info("sending xpath: ", logout_cfg["send_element"])
-        login_ok = is_logged_in(driver, send_element=logout_cfg["send_element"]) or login_webapp(app_name)
-        logger.info("after function running xpath: ", logout_cfg["send_element"])
-        logger.info("login_ok:", login_ok)
+        logger.info("send element xpath: %s", logout_cfg["send_element"])
+        login_ok = is_logged_in(driver, send_element=logout_cfg["send_element"])
+
+        if not login_ok:
+            logger.info("User not logged in. Attempting login...")
+            login_ok = login_webapp(driver, app_name)
+
+        logger.info("login_ok: %s", login_ok)
+
         for prompt in prompt_list:
             result = {"chat_id": chat_id, "prompt": prompt, "response": "[Not available]"}
             if login_ok:
-                # replace new line characters to avoid UI issues
-                # CPGRAMS treats prompts with new lines as new prompts.
                 prompt = prompt.replace("\n", " ")
-                prompt += "\n"  # Ensure prompt submission
+                prompt += "\n"
                 result["response"] = send_message_webapp(driver, app_name, prompt)
             results.append(result)
-
         return results
+    
     elif app_name == "farmerchat":
-        # For FarmerChat, we assume the session is already active after login_webapp
-        for prompt in prompt_list:
-            result = {"chat_id": chat_id, "prompt": prompt, "response": "[Not available]"}
-            logger.info(f"Sending prompt to {app_name}: {prompt}")
-            # replace new line characters to avoid UI issues
-            prompt = prompt.replace("\n", " ")
-            prompt += "\n"  # Ensure prompt submission
-            result["response"] = send_message_webapp(driver, app_name, prompt)
-            results.append(result)
+        # -------- TEXT MODE --------
+        if not audio_path:
+            for prompt in prompt_list:
+                result = {
+                    "chat_id": chat_id,
+                    "prompt": prompt,
+                    "response": "[Not available]"
+                }
 
-        return results
+                logger.info(f"Sending prompt to {app_name}: {prompt}")
+
+                # FarmerChat UI breaks on newline
+                prompt = prompt.replace("\n", " ")
+                prompt += "\n"
+
+                result["response"] = send_message_webapp(
+                    driver,
+                    app_name,
+                    prompt,
+                    audio_path=None,
+                    is_audio=False
+                )
+                results.append(result)
+            return results
+        # -------- AUDIO MODE --------
+        else:
+            result = {
+                "chat_id": chat_id,
+                "prompt": "[Audio Prompt]",
+                "response": "[Not available]"
+            }
+            logger.info(f"Sending audio prompt to {app_name}: {audio_path}")
+            result["response"] = send_message_webapp(
+                driver,
+                app_name,
+                prompt=None,
+                audio_path=audio_path,
+                is_audio=True
+            )
+            results.append(result)
+            return results
     else:
         logger.error(f"Unsupported application: {app_name}")
         return results

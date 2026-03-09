@@ -118,16 +118,17 @@ async def chat(prompt: PromptCreate):
         logger.info(f"Chat request: WebApp {app_name}")
         if prompt.is_voice:
             result = send_prompt(
+                app_name=app_name,
                 chat_id=prompt.chat_id,
                 audio_path=prompt.audio_path,
                 return_voice=True,
             )
-
-        result = send_prompt(
-            app_name=app_name,
-            chat_id=prompt.chat_id,
-            prompt_list=prompt.prompt_list,
-        )
+        else:
+            result = send_prompt(
+                app_name=app_name,
+                chat_id=prompt.chat_id,
+                prompt_list=prompt.prompt_list,
+            )
         return JSONResponse(content={"response": result})
 
     # ------------------------------------------------
