@@ -27,7 +27,7 @@ def main():
     parser.add_argument("--get-config-template", "-T", dest="get_config_template", action="store_true", help="Flag to get the configuration file template")
     parser.add_argument("--verbosity", "-v", dest="verbosity", type=int, choices=[0,1,2,3,4,5], help="Enable verbose output", default=5)
     parser.add_argument("--get-runs", "-N", dest="get_runs", action="store_true", help="Get all test runs")
-    # parser.add_argument("--language", "-l", dest="language", type=str, help="Language for report generation (e.g., English, Tamil)", default="English")
+    parser.add_argument("--language", "-l", dest="language", type=str, help="Language for report generation (e.g., English, Tamil)", default="English")
     parser.add_argument("--run-name", "-r", dest="run_name", type=str, help="Name of the run to evaluate")
     parser.add_argument("--force", "-f", dest="force", default=False, action="store_true", help="Force evaluation of already evaluated runs")
     parser.add_argument("--get-report", "-R", dest="get_report", action="store_true", help="Flag to generate PDF report after evaluation")
@@ -196,7 +196,7 @@ def main():
                 metric_name,
                 scores=scores,
                 reasons=reasons,
-                language="English"
+                language=args.language
             )
 
             metric_data.update({
@@ -215,7 +215,7 @@ def main():
         if plan_name == "PlanSummary":
             continue
 
-        plan_summary = OllamaConnect.get_single_plan_summary(plan_name, metrics, language="English")
+        plan_summary = OllamaConnect.get_single_plan_summary(plan_name, metrics, language=args.language)
 
         for metric_data in metrics.values():
             metric_data["plan_summary"] = plan_summary
@@ -224,7 +224,7 @@ def main():
     # ------------------------------------------------------------
     # THIRD PASS: Run-level summary (after plans exist)
     # ------------------------------------------------------------
-    run_summary = OllamaConnect.get_run_summary(score_card, language="English") if multi_plan else ""
+    run_summary = OllamaConnect.get_run_summary(score_card, language=args.language) if multi_plan else ""
 
     for plan_name, metrics in score_card.items():
         if plan_name == "PlanSummary":
@@ -311,25 +311,31 @@ def main():
     # PDF generation
     # ------------------------------------------------------------
 
-    filename = EvaluationReport.create_report(
+    report = EvaluationReport()
+
+    headers, rows = report.scorecard_to_table(score_card)
+
+    pdf_path = os.path.join(
+        reports_folder,
+        f"AI_Evaluation_Report_{target_name}_{run_name}.pdf"
+    )
+
+    filename = report.create_report(
         target_name=target_name,
         run_name=run_name,
         timestamp=timestamp,
         total_testcases=total_testcases,
-        target_summary=run_summary,
-        plan_summary=plan_summary,
+        run_summary=run_summary,
+        headers=headers,
+        rows=rows,
         score_card=score_card,
-        out_path=os.path.join(
-            reports_folder,
-            f"AI_Evaluation_Report_{target_name}_{run_name}.pdf"
-        ),
-        column_widths=[100, 80, 40, None, None] if multi_plan else [100, 80, 40, None]
+        output_file=pdf_path
     )
 
     logger.info(
         f"PDF Report generated for target: '{target_name}', "
-        f"run: '{run_name}', timestamp: '{timestamp}' "
-        f"with total test cases: {total_testcases}"
+        f"run: '{run_name}', timestamp: '{timestamp}', "
+        f"total test cases: {total_testcases}"
     )
 
     logger.info(f"Report saved to: {filename}")
