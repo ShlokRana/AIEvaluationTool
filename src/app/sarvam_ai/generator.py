@@ -11,6 +11,8 @@ from sarvamai import SarvamAI
 import math
 from pydantic import BaseModel
 from typing import Optional, List
+import re
+from langdetect import detect
 
 # Adjust the path to include the "lib" directory
 sys.path.append(os.path.dirname(__file__) + "/../../")
@@ -165,21 +167,89 @@ class SarvamAIGenerator:
     
 class VoiceLayer:
                             
-    def __init__(self, model : str ="sarvam", loglevel = logging.DEBUG):
-        match model:
+    def __init__(self, tts_model : str = "svara", loglevel = logging.DEBUG):
+        self.tts_model = tts_model
+        match tts_model:
             case "sarvam":
-                self.tts = SarvamTTS("sk_5l1rd7i5_PDy3NUqEsdm5ZawDcv0IA31n")
-            # case "indicparler":
-            #     self.tts = IndicParlerTTS()
-            case _:
+                self.tts = SarvamTTS(os.getenv("SARVAM_TTS_API_KEY"))
+            case "svara":
                 self.tts = Svara_TTS()
+            case _:
+                raise ValueError("Specified TTS engine not available.")
         self.logger = get_logger(__name__, loglevel=loglevel)
+    
+    def segs_and_langs(self, text : str):
+        text = "இந்த project ரொம்ப interesting இருக்கு, but deadline கொஞ்சம் tight."
+        # text2 = "I went to school and met my friends. நான் இன்று பள்ளிக்கு சென்று என் நண்பர்களை சந்தித்தேன். मैं आज स्कूल गया और अपने दोस्तों से मिला। ഞാൻ ഇന്ന് സ്കൂളിലേക്ക് പോയി എന്റെ സുഹൃത്തുക്കളെ കണ്ടു. ଆମେ ସନ୍ଧ୍ୟାବେଳେ ପାର୍କରେ ଘୁରିବାକୁ ଗଲୁ।"
+
+        lang_map = {
+            "as": "Assamese",
+            "bn": "Bengali",
+            "brx": "Bodo",
+            "doi": "Dogri",
+            "gu": "Gujarati",
+            "hi": "Hindi",
+            "kn": "Kannada",
+            "ks": "Kashmiri",
+            "kok": "Konkani",
+            "mai": "Maithili",
+            "ml": "Malayalam",
+            "mni": "Manipuri",
+            "mr": "Marathi",
+            "ne": "Nepali",
+            "or": "Odia",
+            "pa": "Punjabi",
+            "sa": "Sanskrit",
+            "sat": "Santali",
+            "sd": "Sindhi",
+            "ta": "Tamil",
+            "te": "Telugu",
+            "ur": "Urdu",
+            "en" : "English"
+        }
+
+        scripts = [
+        "Latin","Devanagari","Bengali","Gujarati","Gurmukhi",
+        "Oriya","Tamil","Telugu","Kannada","Malayalam",
+        "Arabic","MeeteiMayek","OlChiki"
+        ]
+
+        pattern = "|".join(
+            fr"\p{{Script={s}}}+(?:\s+\p{{Script={s}}}+)*[^\p{{L}}]*"
+            for s in scripts
+        )
+
+        segments = re.findall(pattern, text)
+        is_eng = re.compile(r'^[A-Za-z]+$')
+        print(segments)
+        texts, langs = [], []
+
+        for s in segments:
+            to_cmp = s.strip()
+            if not s:
+                continue
+            if bool(is_eng.match(to_cmp)):
+                langs.append(lang_map["en"])
+            else:
+                try:
+                    lang = detect(to_cmp)
+                    langs.append(lang_map[lang])    
+                except:
+                    self.logger.debug("Deafulting to english as the language could not be detected.")
+                    langs.append(lang_map.get(lang, "English"))
+            texts.append(s)
+        return texts, langs
     
     def convert_to_audio(self, text : str):
         try:
-            self.tts.audio(text, os.path.join(os.getcwd(), "temp.wav"))
-            return "temp.wav"
-            # have to send this to the target as an audio file
+            file_save_path = os.path.join(os.getcwd(), "temp.wav") 
+            if self.tts_model == "sarvam":
+                self.tts.get_audio(text, file_save_path)
+            else:
+                text_segs, langs = self.segs_and_langs(text)
+                self.tts.get_audio(text_segs, file_save_path, langs, gender="Male")
+            return file_save_path
+        
         except Exception as e:
             self.logger.error("Could not convert to an audio file.", e)
             return ""        

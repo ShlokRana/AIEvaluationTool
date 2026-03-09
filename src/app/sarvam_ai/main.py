@@ -30,13 +30,13 @@ from lib.utils.logger import get_logger
 #     score: float
 #     label: str
 
-class ReqForVoice(BaseModel):
-    text : str
+# class ReqForVoice(BaseModel):
+#     text : str
 
 app = FastAPI(title="Sarvam AI Application")
 translator = SarvamAITranslator()
 generator = SarvamAIGenerator()
-voice_layer = VoiceLayer()
+voice_layer = VoiceLayer(model="svara")
 
 safety_engine: Optional[ShieldGemmaSafety] = None
 
@@ -108,21 +108,17 @@ def text_to_speech(text : str):
     try:
         if not text.strip():
             raise HTTPException(status_code=400, detail="Text cannot be empty.")
-
         audio_path = voice_layer.convert_to_audio(text)
-
         if audio_path != "":
             return FileResponse(
                 audio_path,
                 media_type="audio/wav",
             )
-
         else:
             raise HTTPException(
                 status_code=500,
                 detail= f"Audio Generation has failed : {str(e)}"
             )
-
     except Exception as e:
         raise HTTPException(
             status_code=500,

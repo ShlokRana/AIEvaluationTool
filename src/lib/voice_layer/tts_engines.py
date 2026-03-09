@@ -10,7 +10,8 @@ from snac import SNAC
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import soundfile as sf
-
+from typing import List
+import numpy as np
 
 warnings.filterwarnings("ignore")
 
@@ -104,7 +105,7 @@ class SarvamTTS:
             return "en"
 
 
-    def audio(self, text, output_file="output.wav"):
+    def get_audio(self, text, output_file="output.wav"):
 
         print("[Sarvam] Generating speech...")
 
@@ -136,41 +137,23 @@ class Svara_TTS:
         self.model = AutoModelForCausalLM.from_pretrained(self.model_name)
         self.model = self.model.to(self.device)
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+    
+    def generate_batch_audio(self, batch_text, languages, gender):
+        voices = [f"{l} ({gender})" for l in languages]
+        formatted_texts = [f"<|audio|> {v}: {t}<|eot_id|>" for v, t in zip(voices, batch_text)]
+        prompts = ["<custom_token_3>" + f + "<custom_token_4><custom_token_5>" for f in formatted_texts]
 
-    def generate_audio_from_text(self, text, language, gender):
-        """
-        Generate audio from text using the Svara-TTS model.
-
-        Args:
-            text (str): The text to synthesize into speech
-            language (str): The language name (e.g., 'Hindi', 'Bengali', 'English')
-            gender (str): The gender of the voice ('Male' or 'Female')
-
-        Returns:
-            numpy.ndarray: Audio waveform array at 24kHz sample rate
-        """
-
-        # Format the prompt for Svara-TTS
-        voice = f"{language} ({gender})"
-        formatted_text = f"<|audio|> {voice}: {text}<|eot_id|>"
-        prompt = "<custom_token_3>" + formatted_text + "<custom_token_4><custom_token_5>"
-
-        # Tokenize the prompt
-        input_ids = self.tokenizer(prompt, return_tensors="pt").input_ids
-
+        batch_ip_ids = self.tokenizer(prompts, return_tensors="pt", padding=True)["input_ids"]
+        start_token = torch.tensor([[128259]], dtype=torch.int64).repeat(len(batch_text), 1)
+        end_tokens = torch.tensor([[128009, 128260, 128261, 128257]], dtype=torch.int64).repeat(len(batch_text), 1)
         # Add special tokens
-        start_token = torch.tensor([[128259]], dtype=torch.int64)
-        end_tokens = torch.tensor([[128009, 128260, 128261, 128257]], dtype=torch.int64)
+        mod_batch_ip_ids = torch.cat([start_token, batch_ip_ids, end_tokens], dim=1)
+        # print(mod_batch_ip_ids.shape)
+        ip_ids = mod_batch_ip_ids.to(self.device)
 
-        modified_input_ids = torch.cat([start_token, input_ids, end_tokens], dim=1)
-
-        # Move to device
-        input_ids = modified_input_ids.to(self.device)
-
-        # Generate speech tokens
         with torch.no_grad():
             generated_ids = self.model.generate(
-                input_ids=input_ids,
+                input_ids=ip_ids,
                 max_new_tokens=4000,
                 do_sample=True,
                 temperature=0.7,
@@ -179,14 +162,18 @@ class Svara_TTS:
                 num_return_sequences=1,
                 eos_token_id=128258,
             )
+        
+        # print(generated_ids)
+        return generated_ids
+
+    def create_audio_arr(self, generated_ids):#, single : bool = False):
 
         # Parse output tokens to extract SNAC codes
         START_OF_SPEECH_TOKEN = 128257
         END_OF_SPEECH_TOKEN = 128258
         AUDIO_CODE_BASE_OFFSET = 128266
         AUDIO_CODE_MAX = AUDIO_CODE_BASE_OFFSET + (7 * 4096) - 1
-
-        row = generated_ids[0]
+        row = generated_ids #if not single else generated_ids[0]
         token_indices = (row == START_OF_SPEECH_TOKEN).nonzero(as_tuple=True)[0]
 
         if len(token_indices) > 0:
@@ -246,13 +233,43 @@ class Svara_TTS:
 
         return audio_array
 
-    def audio(self, text_input : str, save_path : str, lang : str = "English" ,gender : str = "Female"):
+    def generate_audio_from_text(self, text : str | List[str], language : str | List[str], gender : str):
+        """
+        Generate audio from text using the Svara-TTS model.
+
+        Args:
+            text (str): The text to synthesize into speech
+            language (str): The language name (e.g., 'Hindi', 'Bengali', 'English')
+            gender (str): The gender of the voice ('Male' or 'Female')
+
+        Returns:
+            numpy.ndarray: Audio waveform array at 24kHz sample rate
+        """
+
+        if isinstance(text, list):
+            gen_ids = self.generate_batch_audio(text, language, gender)
+            audio_arr = []
+            for r in gen_ids:
+               audio_arr.append(self.create_audio_arr(r))
+        else:
+            raise ValueError("No text to convert to audio.")
+        # else:
+        #     gen_ids = self.generate_single_audio(text, language, gender)
+        #     audio_arr = self.create_audio_arr(gen_ids, single=True)
+
+        return audio_arr 
+
+    def get_audio(self, text_input : str | List[str], save_path : str , lang : str | List[str] , gender : str= "Female"):
         try:
             audio_array = self.generate_audio_from_text(
                 text=text_input,
                 language = lang,
                 gender=gender
             )
-            sf.write(save_path, audio_array, 24000)
+            if isinstance(audio_array, list):
+                combined_audio = np.concat(audio_array)
+                sf.write(save_path, combined_audio, 24000)
+            else:
+                sf.write(save_path, audio_array, 24000)
         except Exception as e:
             print(f"Error : {e}")
