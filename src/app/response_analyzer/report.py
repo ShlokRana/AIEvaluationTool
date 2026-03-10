@@ -76,7 +76,7 @@ def main():
     # db_url = f"mariadb+mariadbconnector://{config['database']['user']}:{config['database']['password']}@{config['database']['host']}:{config['database']['port']}/{config['database']['database']}"
 
     # set the default value of project root to current directory, we will adjust it based on the location of this file.
-    project_root = "./"
+    # project_root = "./"
 
     # setting up the database connection
     if config["database"]["engine"] == "sqlite":
@@ -103,6 +103,9 @@ def main():
             f"@{config['database']['host']}:{config['database']['port']}/"
             f"{config['database']['database']}"
         )
+
+        # Resolve project root (this file → importer → app → src → project_root)
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
     try:
         logger.info(f"Database URL: {db_url}")
@@ -319,7 +322,7 @@ def main():
         reports_folder,
         f"AI_Evaluation_Report_{target_name}_{run_name}.pdf"
     )
-
+    print(pdf_path)
     filename = report.create_report(
         target_name=target_name,
         run_name=run_name,

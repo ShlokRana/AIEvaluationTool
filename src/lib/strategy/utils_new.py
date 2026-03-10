@@ -1151,7 +1151,6 @@ td:nth-child(3), th:nth-child(3) {{
         output_file
     ):
 
-        output_file = f"AI_Evaluation_Tool_{target_name}.pdf"
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         html = self.generate_html(
