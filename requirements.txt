@@ -64,7 +64,7 @@ levenshtein
 stanza
 zss
 
-reportlab
+weasyprint
 matplotlib
 scipy
 seaborn
