@@ -180,7 +180,7 @@ class VoiceLayer:
         self.logger = get_logger(__name__, loglevel=loglevel)
     
     def segs_and_langs(self, text : str):
-        text = "You are a agriculture assistant. Understand and answer the question briefly. क्या मैं जैविक तरीकों से अपनी मिट्टी की उर्वरता बढ़ा सकता हूँ? कृपया 2 उपाय बताएं और यह भी समझाएं कि ये किस वैज्ञानिक सिद्धांत पर आधारित हैं।"
+        # text = "You are a agriculture assistant. Understand and answer the question briefly. क्या मैं जैविक तरीकों से अपनी मिट्टी की उर्वरता बढ़ा सकता हूँ? कृपया 2 उपाय बताएं और यह भी समझाएं कि ये किस वैज्ञानिक सिद्धांत पर आधारित हैं।"
 
         lang_map = {
             "as": "Assamese",

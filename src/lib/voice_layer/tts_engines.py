@@ -12,6 +12,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 import soundfile as sf
 from typing import List
 import numpy as np
+import torch
+from torch.nn.utils.rnn import pad_sequence
 
 warnings.filterwarnings("ignore")
 
@@ -166,14 +168,69 @@ class Svara_TTS:
         # print(generated_ids)
         return generated_ids
 
-    def create_audio_arr(self, generated_ids):#, single : bool = False):
+        # Redistribute codes into hierarchical levels for SNAC decoder
+    def redistribute_codes(self, code_list):
+        """De-interleave SNAC tokens into 3 hierarchical levels"""
+        codes_lvl = [[] for _ in range(3)]
+        llm_codebook_offsets = [i * 4096 for i in range(7)]
+
+        for i in range(0, len(code_list), 7):
+            # Level 0: Coarse
+            codes_lvl[0].append(code_list[i] - llm_codebook_offsets[0])
+            # Level 1: Medium
+            codes_lvl[1].append(code_list[i+1] - llm_codebook_offsets[1])
+            codes_lvl[1].append(code_list[i+4] - llm_codebook_offsets[4])
+            # Level 2: Fine
+            codes_lvl[2].append(code_list[i+2] - llm_codebook_offsets[2])
+            codes_lvl[2].append(code_list[i+3] - llm_codebook_offsets[3])
+            codes_lvl[2].append(code_list[i+5] - llm_codebook_offsets[5])
+            codes_lvl[2].append(code_list[i+6] - llm_codebook_offsets[6])
+
+        # Convert to tensors for SNAC decoder
+        hierarchical_codes = []
+        for lvl_codes in codes_lvl:
+            tensor = torch.tensor(lvl_codes, dtype=torch.long, device=self.device).unsqueeze(0)
+            hierarchical_codes.append(tensor)
+        # Decode with SNAC
+        with torch.no_grad():
+            audio_hat = self.snac_model.decode(hierarchical_codes)
+
+        return audio_hat
+    
+    def opt_redistribution(self, code_list):
+        llm_codebook_offsets = torch.tensor([i * 4096 for i in range(7)], dtype=torch.long, device=self.device)
+        A = torch.tensor(code_list, dtype=torch.long, device=self.device)
+        A = (A.view(len(A) // 7, 7) - llm_codebook_offsets).reshape(-1)
+
+        col_indices = [torch.tensor([0]), torch.tensor([1, 4]), torch.tensor([2,3,5,6])]
+        hierarchical_codes = []
+        for i in range(len(col_indices)):
+            chunk = A.view(len(A)//7, 7)[:, col_indices[i]]
+            chunk = chunk.reshape(-1)#.unsqueeze(0)
+            hierarchical_codes.append(chunk)
+        return hierarchical_codes
+        
+    def decode_to_audio(self, hier_codes_list : List):
+        l1_lengths = [x[0].shape[0] for x in hier_codes_list]
+        batched_levels = [[x[i] for x in hier_codes_list] for i in range(3)]
+        batched_levels = [pad_sequence(batched_levels[i], batch_first=True, padding_value=0) for i in range(3)]
+
+        # print([batched_levels[i].shape for i in range(len(batched_levels))])
+        with torch.no_grad():
+            audio_hat = self.snac_model.decode(batched_levels)
+        
+        samples_per_token = audio_hat.shape[-1] // batched_levels[0].shape[1]
+        combined_audio = torch.cat([audio_hat[i, :, : l1_lengths[i] * samples_per_token] for i in range(len(l1_lengths))], dim=-1)
+        return combined_audio
+    
+
+    def create_audio_arr(self, row):
 
         # Parse output tokens to extract SNAC codes
         START_OF_SPEECH_TOKEN = 128257
         END_OF_SPEECH_TOKEN = 128258
         AUDIO_CODE_BASE_OFFSET = 128266
-        AUDIO_CODE_MAX = AUDIO_CODE_BASE_OFFSET + (7 * 4096) - 1
-        row = generated_ids #if not single else generated_ids[0]
+        AUDIO_CODE_MAX = AUDIO_CODE_BASE_OFFSET + (7 * 4096) - 1 
         token_indices = (row == START_OF_SPEECH_TOKEN).nonzero(as_tuple=True)[0]
 
         if len(token_indices) > 0:
@@ -193,45 +250,18 @@ class Svara_TTS:
             new_length = (len(snac_tokens) // 7) * 7
             snac_tokens = snac_tokens[:new_length]
         else:
-            raise ValueError("No speech tokens found in generated output")
+            raise ValueError("No speech tokens found in generated output.")
 
-        # Redistribute codes into hierarchical levels for SNAC decoder
-        def redistribute_codes(code_list):
-            """De-interleave SNAC tokens into 3 hierarchical levels"""
-            codes_lvl = [[] for _ in range(3)]
-            llm_codebook_offsets = [i * 4096 for i in range(7)]
-
-            for i in range(0, len(code_list), 7):
-                # Level 0: Coarse
-                codes_lvl[0].append(code_list[i] - llm_codebook_offsets[0])
-                # Level 1: Medium
-                codes_lvl[1].append(code_list[i+1] - llm_codebook_offsets[1])
-                codes_lvl[1].append(code_list[i+4] - llm_codebook_offsets[4])
-                # Level 2: Fine
-                codes_lvl[2].append(code_list[i+2] - llm_codebook_offsets[2])
-                codes_lvl[2].append(code_list[i+3] - llm_codebook_offsets[3])
-                codes_lvl[2].append(code_list[i+5] - llm_codebook_offsets[5])
-                codes_lvl[2].append(code_list[i+6] - llm_codebook_offsets[6])
-
-            # Convert to tensors for SNAC decoder
-            hierarchical_codes = []
-            for lvl_codes in codes_lvl:
-                tensor = torch.tensor(lvl_codes, dtype=torch.long, device=self.device).unsqueeze(0)
-                hierarchical_codes.append(tensor)
-
-            # Decode with SNAC
-            with torch.no_grad():
-                audio_hat = self.snac_model.decode(hierarchical_codes)
-
-            return audio_hat
-
+        # print(snac_tokens)
         # Generate audio waveform
-        audio_waveform = redistribute_codes(snac_tokens)
+        # audio_waveform = self.opt_redistribution(snac_tokens)
+        hier_codes = self.opt_redistribution(snac_tokens)
 
         # Convert to numpy array
-        audio_array = audio_waveform.detach().squeeze().to("cpu").numpy()
+        # audio_array = audio_waveform.detach().squeeze().to("cpu").numpy()
 
-        return audio_array
+        # return audio_array
+        return hier_codes
 
     def generate_audio_from_text(self, text : str | List[str], language : str | List[str], gender : str):
         """
@@ -248,14 +278,17 @@ class Svara_TTS:
 
         if isinstance(text, list):
             gen_ids = self.generate_batch_audio(text, language, gender)
-            audio_arr = []
+            # audio_arr = []
+            # for r in gen_ids:
+            #    audio_arr.append(self.create_audio_arr(r))
+            hier_codes = []
             for r in gen_ids:
-               audio_arr.append(self.create_audio_arr(r))
+                hier_codes.append(self.create_audio_arr(r))
+            audio_op = self.decode_to_audio(hier_codes)
+            audio_arr = audio_op.detach().reshape(-1).to("cpu").numpy()
+            # print(audio_op.shape)
         else:
             raise ValueError("No text to convert to audio.")
-        # else:
-        #     gen_ids = self.generate_single_audio(text, language, gender)
-        #     audio_arr = self.create_audio_arr(gen_ids, single=True)
 
         return audio_arr 
 
