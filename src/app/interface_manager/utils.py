@@ -94,15 +94,24 @@ class DriverManager:
         # to turn off headless mode - remove the below line or comment it out.
         if mode == "True":
             opts.add_argument("--headless")
-        opts.add_argument(f"user-data-dir={self.profile_folder_path}")
         opts.add_experimental_option("excludeSwitches", ["enable-logging"])
 
+        cfg = load_config()
+        selenium_mode = str(cfg.get("selenium_mode", "local")).lower()
+        remote_url = cfg.get("selenium_remote_url", "http://selenium-browser:4444/wd/hub")
+
         try:
-            # service = Service(ChromeDriverManager().install())
-            # self.driver = webdriver.Chrome(service=service, options=opts)
-            # @bugfix: Use the below line to load driver faster -- Balayogi 12.01.2026
-            self.driver = webdriver.Chrome(options=opts)
-            self.driver.get("about:blank")
+            if selenium_mode == "remote":
+                logger.info(f"Using Remote WebDriver at {remote_url}")
+                self.driver = webdriver.Remote(
+                    command_executor=remote_url,
+                    options=opts
+                )
+            else:
+                opts.add_argument(f"user-data-dir={self.profile_folder_path}")
+                logger.info("Using local Chrome WebDriver")
+                self.driver = webdriver.Chrome(options=opts)
+
             self.driver.get(url)
             logger.info(f"Driver ready for {app_name}")
             return self.driver
@@ -110,6 +119,19 @@ class DriverManager:
             logger.error(f"Failed to start Chrome for {app_name}: {e}")
             self.driver = None
             raise
+
+        # try:
+        #     # service = Service(ChromeDriverManager().install())
+        #     # self.driver = webdriver.Chrome(service=service, options=opts)
+        #     # @bugfix: Use the below line to load driver faster -- Balayogi 12.01.2026
+        #     self.driver = webdriver.Chrome(options=opts)
+        #     self.driver.get(url)
+        #     logger.info(f"Driver ready for {app_name}")
+        #     return self.driver
+        # except WebDriverException as e:
+        #     logger.error(f"Failed to start Chrome for {app_name}: {e}")
+        #     self.driver = None
+        #     raise
 
     def _is_alive(self) -> bool:
         """Check if the cached driver is still valid."""

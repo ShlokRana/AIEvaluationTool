@@ -230,7 +230,7 @@ AIEvaluationTool/
 │   ├── strategy_map.json               # Mapping of strategies to metrics
 │   ├── strategy_id.json                # Strategy identifiers
 │   ├── metric_strategy_mapping.json    # Metric to strategy associations
-│   ├── defaults.json                   # Default configuration values
+│   └── defaults.json                   # Default configuration values
 │
 ├── src/
 │   ├── app/
@@ -240,28 +240,35 @@ AIEvaluationTool/
 │   │   ├── interface_manager/          # Platform interaction automation
 │   │   │   ├── main.py                 # FastAPI service for interface management
 │   │   │   ├── credentials.json        # Secured account credentials
-│   │   │   ├── xpaths.json             # Locations to identify and interact with web elements
+│   │   │   └── xpaths.json             # Locations to identify and interact with web elements
 │   │   ├── testcase_executor/          # Test execution orchestration
 │   │   │   ├── main.py                 # Test case execution manager
-│   │   │   ├── config.json             # Target and database configuration
+│   │   │   └── config.json             # Target and database configuration
 │   │   ├── response_analyzer/          # Response analysis and evaluation
 │   │   │   ├── analyze.py              # Main analysis script
 │   │   │   ├── report.py               # Report generation
-│   │   │   ├── config.json             # Analyzer configuration
+│   │   │   └── config.json             # Analyzer configuration
 │   │   ├── sarvam_ai/                  # Local LLM model deployment
-│   │   │   ├── main.py                 # Model server entry point
+│   │   │   └── main.py                 # Model server entry point
+│   │   ├── maintenance/                 # System maintenance and cleanup utilities
+│   │   │   ├── config.json             # Maintenance configuration
+│   │   │   └── fix_language.py         # Language correction and cleanup utility
+│   │   ├── prompt_quality_evaluation_tool/  # Prompt Quality Evaluation Tool
+│   │   │   ├── main.py                 # Streamlit application entry point
+│   │   │   ├── API_keys.json           # LLM API credentials
+│   │   │   └── metric_and_submetric.xlsx  # Metric definitions and submetrics
 │   │   ├── TDMS/                       # Test Data Management System
 │   │   │   ├── back-end/               # FastAPI backend service
 │   │   │   │   ├── main.py             # TDMS API server
-│   │   │   │   ├── database/           # Database layer
-│   │   │   │       ├── config.json     # Database layer
+│   │   │   │   └── database/           # Database layer
+│   │   │   │       └── config.json     # Database layer
 │   │   │   └── front-end/              # React/Node.js frontend
 │   │   └── TestCaseExecutorDashboard/  # Test Case Execution Dashboard
 │   │       ├── back-end/               # FastAPI backend service
 │   │       │   ├── .env                # DB configuration and Dev Configuration
 │   │       │   ├── .env.example        # Environment template
 │   │       │   ├── main.py             # TDMS API server
-│   │       │   ├── config.json         # Configure Database and Ports
+│   │       │   └── config.json         # Configure Database and Ports
 │   │       └── front-end/              # React/Node.js frontend
 │   └── lib/
 │       ├── strategy/..                 # Evaluation strategy implementations
@@ -294,6 +301,9 @@ AIEvaluationTool/
 - `response_analyzer/` - Analyzes responses and applies evaluation strategies
 - `sarvam_ai/` - Hosts multiple specialized AI models for evaluation
 - `TDMS/` - Web-based system for test data management and user access control
+- `prompt_quality_evaluation_tool/` - Streamlit-based UI for assessing prompt and response quality using LLM-based evaluation
+- `TestCaseExecutorDashboard/` - Web application for orchestrating, monitoring, and analyzing test case execution with real-time updates
+- `maintenance/` - System utilities for database cleanup & language correction operations
 
 ---
 

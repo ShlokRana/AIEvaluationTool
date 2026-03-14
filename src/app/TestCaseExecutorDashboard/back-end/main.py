@@ -47,7 +47,7 @@ except FileNotFoundError:
     config = {}
 
 db_cfg = config.get("db", {})
-engine_type = db_cfg.get("engine_type", "sqlite").lower()
+engine_type = db_cfg.get("engine", "sqlite").lower()
 
 port_config = config.get("port", {})
 BACKEND_PORT = int(port_config.get("back-end", 7000))

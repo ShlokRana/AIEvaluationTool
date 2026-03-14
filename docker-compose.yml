@@ -1,0 +1,101 @@
+services:
+  db:
+    image: mariadb:11
+    container_name: aiet-db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: root_password
+      MARIADB_DATABASE: aievaluationtool
+      MARIADB_USER: aiet_user
+      MARIADB_PASSWORD: aiet_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-uroot", "-proot_password"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  selenium-browser:
+    image: selenium/standalone-chrome:latest
+    container_name: demo-browser
+    shm_size: 2gb
+    ports:
+      - "7900:7900" # NoVNC live browser view
+      - "4444:4444" # Selenium WebDriver endpoint
+    environment:
+      - SE_VNC_NO_PASSWORD=1
+    restart: unless-stopped
+
+  interface-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile.interface-manager
+    container_name: aiet-interface-manager
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      selenium-browser:
+        condition: service_started
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./:/app
+      - ./logs:/app/logs
+      - ./data:/app/data
+
+  app-cli:
+    build:
+      context: .
+      dockerfile: Dockerfile.app-cli
+    container_name: aiet-cli
+    depends_on:
+      db:
+        condition: service_healthy
+      interface-manager:
+        condition: service_started
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    working_dir: /app
+    volumes:
+      - ./:/app
+      - ./logs:/app/logs
+      - ./data:/app/data
+    env_file:
+      - .env
+    tty: true
+    stdin_open: true
+  tdms-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.tdms-backend
+    container_name: tdms-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8100:8100"
+    volumes:
+      - ./:/app
+      - ./logs:/app/logs
+      - ./data:/app/data
+    env_file:
+      - .env
+
+  tdms-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.tdms-frontend
+    container_name: tdms-frontend
+    restart: unless-stopped
+    depends_on:
+      - tdms-backend
+    ports:
+      - "8080:80"
+
+volumes:
+  mariadb_data:

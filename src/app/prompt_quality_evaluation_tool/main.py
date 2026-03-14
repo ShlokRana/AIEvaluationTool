@@ -29,7 +29,7 @@ class GeminiKeyManager:
 # ------------------------------------------------------------------
 # Reading API keys from config file
 # ------------------------------------------------------------------
-with open("keys.json", "r") as f:
+with open("API_keys.json", "r") as f:
     config = json.load(f)
 
 # Load keys from config

@@ -14,8 +14,7 @@ from rich.console import Console
 from rich.table import Table
 from datetime import datetime
 import randomname  # Importing the randomname library for generating random names
-import os
-import requests
+from pathlib import Path
 
 sys.path.append(os.path.dirname(__file__) + "/../../")  # Adjust the path to include the "lib" directory
 
@@ -132,11 +131,13 @@ def main():
         return
     
     # Load configuration from the specified file if provided
+    BASE_DIR = Path(__file__).resolve().parents[3]
+    config_path = BASE_DIR / "config.json"
     if args.config:
-        if not os.path.exists(args.config):
+        if not os.path.exists(config_path):
             logger.error(f"Configuration file '{args.config}' does not exist.")
             return
-        with open(args.config, 'r') as config_file:
+        with open(config_path, 'r') as config_file:
             try:
                 config = json.load(config_file)
             except json.JSONDecodeError as e:
@@ -145,7 +146,11 @@ def main():
     else:
         logger.error("No configuration file provided.")
         return
-    
+    if config['interface_manager']['docker']:
+        interface_manager_url = config.get("interface_manager", {}).get("base_url", "http://interface-manager:8000")
+    else:
+        interface_manager_url = "http://localhost:8000"
+
     # setting up the database connection
     # db_url = f"mariadb+mariadbconnector://{config['database']['user']}:{config['database']['password']}@{config['database']['host']}:{config['database']['port']}/{config['database']['database']}"
 
@@ -465,7 +470,7 @@ def main():
                     db.add_or_update_testrun_detail(rundetail)
 
                     # Initialize the InterfaceManagerClient with the provided configuration
-                    client = InterfaceManagerClient(base_url="http://localhost:8000" ,application_type=application_type, agent_name=agent_name)
+                    client = InterfaceManagerClient(base_url=interface_manager_url ,application_type=application_type, agent_name=agent_name)
                     client.sync_config({
                         "application_name": application_name,
                         "application_type": application_type,
@@ -588,7 +593,7 @@ def main():
                 db.add_or_update_testrun(run=run)
 
                 # Initialize the InterfaceManagerClient with the provided configuration
-                client = InterfaceManagerClient(base_url="http://localhost:8000" ,application_type=application_type, agent_name=agent_name)
+                client = InterfaceManagerClient(base_url=interface_manager_url ,application_type=application_type, agent_name=agent_name)
                 client.sync_config({
                     "application_name": application_name,
                     "application_type": application_type,
@@ -722,7 +727,7 @@ def main():
                 db.add_or_update_testrun(run=run)
 
                 # Initialize the InterfaceManagerClient with the provided configuration
-                client = InterfaceManagerClient(base_url="http://localhost:8000" ,application_type=application_type, agent_name=agent_name)
+                client = InterfaceManagerClient(base_url=interface_manager_url ,application_type=application_type, agent_name=agent_name)
                 client.sync_config({
                     "application_name": application_name,
                     "application_type": application_type,

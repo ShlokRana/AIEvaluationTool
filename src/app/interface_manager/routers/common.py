@@ -22,9 +22,11 @@ from context import APIRuntimeContext
 from api_handler import handle_api_chat
 from pydantic import BaseModel
 import json
+import os
 
 router = APIRouter()
 logger = get_logger("main")
+config_path = os.path.join(os.path.dirname(__file__), "..", "config.json")
 
 # new one
 # class PromptCreate(BaseModel):
@@ -217,7 +219,7 @@ def chat_interface():
 # -------------------------------
 @router.get("/config")
 def get_config():
-    with open("config.json", "r") as file:
+    with open(config_path, "r") as file:
         return json.load(file)
 
 
@@ -229,7 +231,7 @@ async def update_config(request: Request):
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
     try:
-        with open("config.json", "w") as file:
+        with open(config_path, "w") as file:
             json.dump(new_config, file, indent=4)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to write config: {e}")

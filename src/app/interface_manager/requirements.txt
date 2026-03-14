@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+selenium
+webdriver-manager
+psutil
+requests>=2.32.4
+openai
+google-genai
+pydantic

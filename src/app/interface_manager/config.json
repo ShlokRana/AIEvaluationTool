@@ -7,8 +7,11 @@
     "whatsapp_url": "https://web.whatsapp.com",
     "action": "send_all_prompts",
     "run_mode": "single_window",
-    "agent_name": "FarmerChat",
-    "application_name": "FarmerChat",
-    "application_url": "https://www-help-gooey-ai.filesusr.com/html/18ec4d_3005ee787398e60b1e5b118078b53f5b.html",
-    "headless": "False"
+    "agent_name": "Vaidya AI",
+    "application_name": "Vaidya AI",
+    "application_url": "https://web.whatsapp.com/",
+    "headless": "False",
+    "selenium_mode": "remote",
+    "selenium_remote_url": "http://selenium-browser:4444/wd/hub",
+    "not_used": " base_url, debug, ollama_server_url, action & run_mode(runmode used but not read from config)"
 }

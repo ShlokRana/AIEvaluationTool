@@ -115,4 +115,4 @@ app.include_router(metric.metric_router, tags=["Metric"])
 app.include_router(testplan_v2.testplan_router, tags=["TestPlan_v2"])
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8100, reload=True)
