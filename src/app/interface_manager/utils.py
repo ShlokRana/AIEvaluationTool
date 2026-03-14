@@ -23,9 +23,15 @@ import traceback
 from pathlib import Path
 import sounddevice as sd
 import soundfile as sf
+import base64
+import subprocess
 
+APP_HANDLERS = {
+    "cpgrams": "handle_cpgrams",
+    "farmerchat": "handle_farmerchat",
+}
 
-from logger import get_logger
+from lib.utils.logger import get_logger
 
 def load_json(file_path):
     with open(file_path, 'r', encoding='utf-8') as f:
@@ -48,6 +54,7 @@ logger = get_logger("interface_manager")
 # Setting up a consistent download directory for all apps using this driver instance.
 download_dir = Path.cwd().parents[2] / "agent_response_cache" 
 os.makedirs(download_dir, exist_ok=True)
+DEFAULT_DOWNLOAD_DIR = download_dir
 
 # --------------------------------------------------------------------
 # Driver Management
@@ -415,715 +422,815 @@ def search_entity(driver: webdriver.Chrome, app_name: str) -> bool:
 def split_message(message, max_length=1000):
     return [message[i:i + max_length] for i in range(0, len(message), max_length)]
 
-def send_message_whatsapp(driver: webdriver.Chrome, prompt: str = None, audio_path: str = None, is_audio: bool= False):
-    """
-    Sends a prompt to WhatsApp Web and retrieves responses after the last sent message.
-    """
+def send_text_whatsapp(driver, prompt, chat_cfg):
+    wait = WebDriverWait(driver, 30)
+
+    message_box = wait.until(
+        EC.element_to_be_clickable((By.XPATH, chat_cfg["prompt_input_box_element"]))
+    )
+
+    driver.execute_script("arguments[0].focus();", message_box)
+
+    driver.execute_script("""
+    arguments[0].innerHTML = "";
+    """, message_box)
+
+    chunks = split_message(prompt)
+
+    for chunk in chunks:
+        message_box.send_keys(chunk)
+        message_box.send_keys(Keys.SHIFT + Keys.ENTER)
+        time.sleep(0.2)
+
+    send_button = driver.find_element(By.XPATH, chat_cfg["send_button_element"])
+    send_button.click()
+
+
+def wait_for_whatsapp_response(driver, chat_cfg, timeout=30, quiet_time=2):
+    import time
+    from selenium.webdriver.common.by import By
+
+    msg_xpath = f"{chat_cfg['message_in_element']} | {chat_cfg['message_out_element']}"
+    start = time.time()
+    last_change = time.time()
+    responses = []
+
+    # Snapshot the last message's HTML before the reply
+    msgs = driver.find_elements(By.XPATH, msg_xpath)
+    last_html = msgs[-1].get_attribute("outerHTML") if msgs else None
+
+    while time.time() - start < timeout:
+        msgs = driver.find_elements(By.XPATH, msg_xpath)
+        if not msgs:
+            time.sleep(0.3)
+            continue
+
+        last_msg = msgs[-1]
+        html = last_msg.get_attribute("outerHTML")
+
+        # Only proceed if the last message changed
+        if html != last_html:
+            last_html = html
+
+            cls = last_msg.get_attribute("class") or ""
+            if "message-in" in cls:  # only process incoming messages
+                nodes = last_msg.find_elements(By.XPATH, chat_cfg["agent_response_element"])
+                for n in nodes:
+                    txt = n.text.strip()
+                    logger.info(
+                    f"(Waited:{int(time.time() - start)}) "
+                    f"Received: {txt}"
+                    )
+                    if txt:
+                        responses.append(txt)
+                        last_change = time.time()
+
+        if responses and time.time() - last_change > quiet_time:
+            break
+
+        time.sleep(0.3)
+
+    return responses
+
+def send_audio_whatsapp(driver, audio_path, chat_cfg):
+
+    wait = WebDriverWait(driver, 30)
+
+    audio_button = wait.until(
+        EC.element_to_be_clickable(
+            (By.XPATH, chat_cfg["audio_record_button_element"])
+        )
+    )
+
+    audio_button.click()
+
+    data, sr = sf.read(audio_path, dtype="float32")
+
+    sd.play(data, sr)
+    sd.wait()
+
+    time.sleep(1)
+
+    send_button = driver.find_element(
+        By.XPATH,
+        chat_cfg["send_button_element"]
+    )
+
+    send_button.click()
+
+def send_file_whatsapp(driver, file_path, chat_cfg):
+
+    wait = WebDriverWait(driver, 30)
+
+    attach_btn = wait.until(
+        EC.element_to_be_clickable(
+            (By.XPATH, chat_cfg["attachment_button_element"])
+        )
+    )
+
+    attach_btn.click()
+
+    file_input = wait.until(
+        EC.presence_of_element_located(
+            (By.XPATH, chat_cfg["attachment_input_element"])
+        )
+    )
+
+    file_input.send_keys(os.path.abspath(file_path))
+
+    send_button = wait.until(
+        EC.element_to_be_clickable(
+            (By.XPATH, chat_cfg["send_button_element"])
+        )
+    )
+
+    send_button.click()
+
+    logger.info(f"File attachment sent → {file_path}")
+
+
+def wait_for_whatsapp_audio_or_text_response(
+    driver,
+    chat_cfg,
+    download_dir,
+    timeout=60,
+    audio_grace=20
+):
+
+    os.makedirs(download_dir, exist_ok=True)
+
+    message_in = chat_cfg["message_in_element"]
+    message_out = chat_cfg["message_out_element"]
+
+    msg_xpath = f"{message_in} | {message_out}"
+
+    start_time = time.time()
+
+    text_candidate = None
+    text_detect_time = None
+
+    messages = driver.find_elements(By.XPATH, msg_xpath)
+    last_html = messages[-1].get_attribute("outerHTML") if messages else None
+
+    while time.time() - start_time < timeout:
+
+        messages = driver.find_elements(By.XPATH, msg_xpath)
+
+        if messages:
+
+            last_msg = messages[-1]
+            html = last_msg.get_attribute("outerHTML")
+
+            if html != last_html:
+
+                last_html = html
+                cls = last_msg.get_attribute("class") or ""
+
+                if "message-in" not in cls:
+                    continue
+
+                waited = int(time.time() - start_time)
+
+                # -------------------------
+                # AUDIO DETECTION
+                # -------------------------
+                voice_nodes = last_msg.find_elements(
+                    By.XPATH,
+                    chat_cfg["audio_message_element"]
+                )
+
+                if voice_nodes:
+
+                    logger.info(f"(Waited:{waited}s) Voice message detected")
+
+                    ActionChains(driver).move_to_element(last_msg).perform()
+
+                    chevron = last_msg.find_element(
+                        By.XPATH,
+                        chat_cfg["download_menu_element"]
+                    )
+
+                    chevron.click()
+
+                    before = set(os.listdir(download_dir))
+
+                    download_btn = WebDriverWait(driver, 10).until(
+                        EC.element_to_be_clickable(
+                            (By.XPATH, chat_cfg["download_button_element"])
+                        )
+                    )
+
+                    download_btn.click()
+
+                    start_download = time.time()
+
+                    while time.time() - start_download < 60:
+
+                        after = set(os.listdir(download_dir))
+                        new_files = after - before
+
+                        if new_files:
+
+                            file = new_files.pop()
+
+                            if not file.endswith(".crdownload"):
+
+                                path = os.path.join(download_dir, file)
+
+                                logger.info( f"(Waited:{waited}s) Audio downloaded → {path}")
+
+                                wav_path = os.path.splitext(path)[0] + ".wav"
+
+                                subprocess.run(
+                                    ["ffmpeg", "-y", "-i", path, wav_path],
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL
+                                )
+
+                                logger.info(f"Converted to WAV → {wav_path}")
+
+                                 # Delete original file
+                                if os.path.exists(wav_path):
+                                    os.remove(path)
+                                    logger.info(f"Deleted original file → {path}")
+
+                                return {
+                                    "type": "audio",
+                                    "file": wav_path
+                                }
+
+                        time.sleep(1)
+
+                # -------------------------
+                # TEXT DETECTION
+                # -------------------------
+                text_nodes = last_msg.find_elements(
+                    By.XPATH,
+                    chat_cfg["agent_response_element"]
+                )
+
+                text_values = []
+
+                for node in text_nodes:
+                    txt = node.text.strip()
+                    if txt:
+                        text_values.append(txt)
+
+                if text_values and text_candidate is None:
+
+                    text_candidate = " ".join(text_values)
+                    text_detect_time = time.time()
+
+                    logger.info(
+                        f"(Waited:{waited}s) Text detected "
+                        f"(waiting for possible audio) → {text_candidate}"
+                    )
+
+        # -------------------------
+        # GRACE PERIOD CHECK
+        # -------------------------
+        if text_candidate and text_detect_time:
+
+            if time.time() - text_detect_time > audio_grace:
+
+                waited = int(time.time() - start_time)
+
+                logger.info(
+                    f"(Waited:{waited}s) Returning text response → {text_candidate}"
+                )
+
+                return {
+                    "type": "text",
+                    "content": text_candidate
+                }
+
+        time.sleep(0.3)
+
+    if text_candidate:
+        logger.info("Timeout reached — returning detected text")
+        return {
+            "type": "text",
+            "content": text_candidate
+        }
+
+    return {
+        "type": "error",
+        "content": "No audio or text response detected"
+    }
+
+
+def send_message_whatsapp(
+    driver: webdriver.Chrome,
+    prompt: str = None,
+    audio_path: str = None,
+    file_path: str = None,
+    is_audio: bool = False,
+    is_file: bool = False,
+    download_dir: str = None
+):
+
+    max_retries = 3
     attempt = 0
-    max_retries: int = 3
-    app_name = load_config().get("application_type")
+
+    config = load_config()
+    app_name = config.get("application_type")
+
     app_cfg = load_xpaths()["applications"][app_name.lower()]
     chat_cfg = app_cfg["ChatPage"]
 
     while attempt < max_retries:
+
         try:
-            wait = WebDriverWait(driver, 30)
 
-            if not is_audio:
-                if not check_and_recover_connection():
-                    logger.warning("No internet connection available.")
-                    return {
-                        "type": "error",
-                        "content": "No response received"
-                    }
-                
-                logger.info(f"Sending text prompt to the bot: {prompt}")
-                # @bugfix.  The XPath has changed! -- Sudar 02.08.2025
-                #message_box_xpath = '//div[@aria-label="Type a message" and @contenteditable="true"]'
-                message_box_xpath = chat_cfg["prompt_input_box_element"]
-                message_box = WebDriverWait(driver, 2).until(
-                    EC.presence_of_element_located((By.XPATH, message_box_xpath))
+            # ---------- Connectivity check ----------
+            if not check_and_recover_connection():
+                return {
+                    "type": "error",
+                    "content": "No internet connection"
+                }
+
+            # ---------- TEXT MESSAGE ----------
+            if not is_audio and not is_file:
+
+                logger.info("Sending text message")
+
+                send_text_whatsapp(driver, prompt, chat_cfg)
+
+                responses = wait_for_whatsapp_response(
+                    driver,
+                    chat_cfg
                 )
-                message_box.clear()
-                message_box.click()
-                chunks = split_message(prompt)
-                
-                for chunk in chunks:
-                    message_box.send_keys(chunk)
-                    message_box.send_keys(Keys.SHIFT + Keys.ENTER)
-                    time.sleep(0.5)
-                message_box.send_keys(Keys.RETURN)
 
-                #time.sleep(5)  # Wait for the message to be sent and responses to arrive
-                old_response_texts = []
-                response_texts = []
-
-                # setup the wait time counter.
-                wait_time = 0 # seconds
-
-                # wait for the responses from the agent for a maximum of 30 seconds
-                while "".join(old_response_texts) != "".join(response_texts) or len(response_texts) == 0:
-                    if wait_time > 30:
-                        logger.warning("No new responses received after 30 seconds. Exiting response retrieval loop.")
-                        break
-                    time.sleep(2)  # Wait for responses to appear
-                    wait_time += 2
-
-                    wait = WebDriverWait(driver, 30)
-                    message_in = chat_cfg["message_in_element"]
-                    message_out = chat_cfg["message_out_element"]
-                    all_messages = wait.until(
-                        EC.presence_of_all_elements_located(
-                            (By.XPATH, f"{message_in} | {message_out}")
-                        )
-                    )
-
-                    outgoing_msgs = driver.find_elements(By.XPATH, message_out)
-                    if not outgoing_msgs:
-                        raise Exception("No outgoing messages found.")
-
-                    last_outgoing = outgoing_msgs[-1]
-
-                    try:
-                        last_index = next(
-                            i for i, msg in enumerate(all_messages) if msg == last_outgoing
-                        )
-                    except StopIteration:
-                        raise Exception(
-                            "Last outgoing message not found in all_messages list."
-                        )
-
-                    responses_after = all_messages[last_index + 1:]
-                    responses = [
-                        msg
-                        for msg in responses_after
-                        if "message-in" in str(msg.get_attribute("class"))
-                    ]
-
-                    old_response_texts = response_texts.copy()
-                    response_texts = []
-                    selectable_text = chat_cfg["agent_response_element"]
-                    for msg in responses:
-                        try:
-                            text_elem = msg.find_element(By.XPATH, selectable_text)
-                            text = text_elem.text.strip()
-                            if text:
-                                response_texts.append(text)
-                                logger.info(f"(Waited:{wait_time}) Received response from WhatsApp: %s", text)
-                        except Exception as e:
-                            logger.debug("Could not read response message: %s", e)
-                            continue
-
-                if response_texts:
+                if responses:
                     return {
                         "type": "text",
-                        "content": " ".join(response_texts)
+                        "content": " ".join(responses)
                     }
-                else:
-                    logger.warning("No response message received from whatsapp.")
-                    return {
-                        "type": "error",
-                        "content": "No response received"
-                    }
+
+                return {
+                    "type": "error",
+                    "content": "No response received"
+                }
+
+            # ---------- RECORDED VOICE NOTE ----------
+            elif is_audio and not is_file:
+
+                logger.info(f"Sending voice note → {audio_path}")
+
+                send_audio_whatsapp(
+                    driver,
+                    audio_path,
+                    chat_cfg
+                )
+
+                response = wait_for_whatsapp_audio_or_text_response(
+                    driver,
+                    chat_cfg,
+                    download_dir=download_dir
+                )
+
+                return response
+
+            # ---------- FILE ATTACHMENT ----------
+            elif is_file:
+
+                logger.info(f"Sending file attachment → {file_path}")
+
+                send_file_whatsapp(
+                    driver,
+                    file_path,
+                    chat_cfg
+                )
+
+                response = wait_for_whatsapp_audio_or_text_response(
+                    driver,
+                    chat_cfg,
+                    download_dir=download_dir
+                )
+
+                return response
+
             else:
-                if not check_and_recover_connection():
-                    logger.warning("No internet connection available.")
-                    return {
-                        "type": "error",
-                        "content": "No response received"
-                    }
-                
-                logger.info(f"Sending audio prompt to the bot: {prompt}")
 
-                # Click the audio record button
-                audio_button_xpath = chat_cfg["audio_record_button_element"]
-
-                # More reliable selector for audio message container
-                audio_msg_xpath = chat_cfg['audio_message_element']  # Parent container of audio element
-
-                # record current audio count
-                old_audio_count = len(driver.find_elements(By.XPATH, audio_msg_xpath))
-                
-                audio_button = WebDriverWait(driver, 20).until(
-                    EC.element_to_be_clickable((By.XPATH, audio_button_xpath))
-                )
-                audio_button.click()
-
-                data, sr = sf.read(audio_path, dtype="float32")
-                logger.info(f"Playing audio with sample rate: {sr} Hz")
-                sd.play(data, sr)
-                sd.wait()  # wait until playback finishes
-                logger.info("Playback finished")
-                time.sleep(1)  # Short delay to ensure the audio is fully processed
-                send_button = driver.find_element(
-                    By.XPATH,
-                    chat_cfg["send_button_element"]
-                )
-                send_button.click()
-                
-                # wait until a new audio message appears
-                wait.until(lambda d: len(d.find_elements(By.XPATH, audio_msg_xpath)) > old_audio_count)
-
-                all_audios = driver.find_elements(By.XPATH, audio_msg_xpath)
-                last_audio = all_audios[-1]
-
-                ActionChains(driver).move_to_element(last_audio).perform()
-
-                chervon_xpath = last_audio.find_element(By.XPATH, chat_cfg["download_menu_element"])
-                if chervon_xpath:
-                    chervon_xpath.click()  # Click the chevron to ensure the message is fully loaded and options are available
-                    logger.debug("Found chevron icon, audio message is likely fully loaded and ready for download.")
-                    logger.info("Audio message is ready for download.")
-
-                    before = set(os.listdir(download_dir))
-
-                    # Broader selector for download button in context menu
-                    download_btn = wait.until(EC.element_to_be_clickable(
-                        (By.XPATH, chat_cfg["download_button_element"])
-                    ))
-                    download_btn.click()
-                    
-                    logger.info(f"Success: Audio from is downloading.")
-                    while True:
-                        after = set(os.listdir(download_dir))
-                        new_files = after - before
-                        if new_files:
-                            file = new_files.pop()
-                            if not file.endswith(".crdownload"):
-                                logger.info(f"Downloaded successfully in {file}")
-                                return {
-                                    "type": "audio",
-                                    "content": "audio downloaded successfully",
-                                    "file": os.path.join(download_dir, file)
-                                    }
-                else:            
-                    logger.error("Audio message found but play icon is missing. It may not be fully loaded.")
+                return {
+                    "type": "error",
+                    "content": "Invalid message configuration"
+                }
 
         except Exception as e:
+
             attempt += 1
-            logger.error(f"Chat attempt {attempt} failed: {e}")
+
+            import traceback
+            logger.error(f"Attempt {attempt} failed: {repr(e)}")
+            logger.error(traceback.format_exc())
+
             if attempt < max_retries:
-                logger.info("Retrying chat...")
-                time.sleep(0.3)
+                time.sleep(1)
             else:
-                logger.error("Max chat retries reached. Aborting.")
                 return {
                     "type": "error",
-                    "content": "No response received"
+                    "content": "Max retries reached"
                 }
 
+# Sending Message to Web applications
 def send_message_webapp(
-    driver: webdriver.Chrome,
-    app_name: str,
-    prompt: str | None = None,
-    audio_path: str | None = None,
-    is_audio: bool = False,
-    max_retries: int = 3,
-    response_timeout: float = 30.0,
-    stability_window: float = 1.5,
-    poll_interval: float = 0.5,
-    send_button_xpath: str | None = None,  # optional: prefer click if UI uses a send button
-) -> str:
-    """
-    Robust send-and-wait that detects both appended responses and in-place updates.
-    Returns only the single final response message (most-recent changed/added element).
-    """
+    driver,
+    app_name,
+    prompt=None,
+    audio_path=None,
+    download_dir=None,
+    max_retries=3,
+):
 
-    app_cfg = load_xpaths()["applications"][app_name.lower()]
-    chat_cfg = app_cfg["ChatPage"]
+    app = app_name.lower()
+    handler_name = APP_HANDLERS.get(app)
 
-    if app_name.lower() == "cpgrams":
-        
-        if not audio_path:
-            input_xpath    = chat_cfg.get("prompt_input_box_element")
-            response_xpath = chat_cfg.get("agent_response_element")
-
-            if not input_xpath or not response_xpath:
-                logger.error(f"{app_name} ChatPage config incomplete: {chat_cfg}")
-                return "No response received"
-
-            # --- helpers (ensure interactable, clear, type) ---
-            def _ensure_input_interactable(timeout=10):
-                box = WebDriverWait(driver, timeout).until(
-                    EC.element_to_be_clickable((By.XPATH, input_xpath))
-                )
-                driver.execute_script("arguments[0].scrollIntoView({block:'center'});", box)
-                for _ in range(4):
-                    try:
-                        box.click()
-                        return box
-                    except (WebDriverException, InvalidElementStateException):
-                        try:
-                            driver.execute_script("arguments[0].focus();", box)
-                        except Exception:
-                            pass
-                        time.sleep(0.2)
-                try:
-                    ActionChains(driver).move_to_element(box).click().perform()
-                    return box
-                except Exception as e:
-                    raise TimeoutException(f"Input element not interactable: {e}")
-
-            def _clear_input(box) -> bool:
-                try:
-                    box.clear()
-                    time.sleep(0.08)
-                    val = (box.get_attribute("value") or "").strip()
-                    contenteditable = box.get_attribute("contenteditable")
-                    inner = ""
-                    if contenteditable == "true" or not val:
-                        inner = (box.get_attribute("innerText") or box.get_attribute("textContent") or "").strip()
-                    if val == "" and (contenteditable != "true" or inner == ""):
-                        return True
-                except Exception:
-                    pass
-                # JS fallback
-                try:
-                    driver.execute_script(
-                        "arguments[0].value = ''; arguments[0].dispatchEvent(new Event('input', {bubbles:true})); arguments[0].dispatchEvent(new Event('change', {bubbles:true}));",
-                        box,
-                    )
-                    time.sleep(0.06)
-                    val = (box.get_attribute("value") or "").strip()
-                    inner = (box.get_attribute("innerText") or box.get_attribute("textContent") or "").strip()
-                    if val == "" and inner == "":
-                        return True
-                except Exception:
-                    pass
-                try:
-                    driver.execute_script(
-                        "arguments[0].innerText = ''; arguments[0].textContent = ''; arguments[0].dispatchEvent(new Event('input', {bubbles:true}));",
-                        box,
-                    )
-                    time.sleep(0.06)
-                    inner = (box.get_attribute("innerText") or box.get_attribute("textContent") or "").strip()
-                    if inner == "":
-                        return True
-                except Exception:
-                    pass
-                logger.debug("Unable to fully clear input element prior to sending.")
-                return False
-
-            def _type_into_input(box, text):
-                try:
-                    for chunk in split_message(text):
-                        box.send_keys(chunk)
-                        box.send_keys(Keys.SHIFT + Keys.RETURN)
-                        time.sleep(0.15)
-                    # final Enter -- if UI has a send button we will click it instead later
-                    box.send_keys(Keys.RETURN)
-                    return
-                except (InvalidElementStateException, WebDriverException) as e:
-                    logger.debug(f"send_keys failed, falling back to JS. Error: {e}")
-                    try:
-                        set_js = (
-                            "arguments[0].value = arguments[1];"
-                            "arguments[0].dispatchEvent(new Event('input', {bubbles:true}));"
-                            "arguments[0].dispatchEvent(new Event('change', {bubbles:true}));"
-                        )
-                        driver.execute_script(set_js, box, text)
-                        ActionChains(driver).move_to_element(box).send_keys(Keys.RETURN).perform()
-                        return
-                    except Exception as e2:
-                        logger.error(f"Fallback JS typing failed: {e2}")
-                        raise
-
-            # --- element snapshot helpers (index-aware) ---
-            def _snapshot_texts() -> list[str]:
-                """Return current list of element texts (stripped) for all matched response elements."""
-                try:
-                    elems = driver.find_elements(By.XPATH, response_xpath)
-                except Exception:
-                    return []
-                texts = []
-                for el in elems:
-                    try:
-                        texts.append((el.text or "").strip())
-                    except StaleElementReferenceException:
-                        texts.append("")  # conservative fallback
-                return texts
-
-            def _find_changed_index(pre_list: list[str], cur_list: list[str]) -> int | None:
-                """
-                Return the index of the first changed element (text differs) OR index of first appended element.
-                If nothing changed, return None.
-                """
-                # appended?
-                if len(cur_list) > len(pre_list):
-                    return len(cur_list) - 1
-                # changed in-place?
-                common = min(len(pre_list), len(cur_list))
-                for i in range(common):
-                    if pre_list[i] != cur_list[i]:
-                        return i
-                return None
-
-            def _wait_for_change_and_stability(pre_snapshot: list[str]) -> str | None:
-                """
-                Wait until a change is detected (append or in-place update) and then wait for it to stabilize.
-                Returns the stable text of the changed/added element, or None on timeout.
-                """
-                start_time = time.time()
-                # Phase 1: wait for any change
-                changed_index = None
-                cur_snapshot = pre_snapshot
-                while time.time() - start_time < response_timeout:
-                    cur_snapshot = _snapshot_texts()
-                    changed_index = _find_changed_index(pre_snapshot, cur_snapshot)
-                    if changed_index is not None:
-                        logger.debug(f"[{app_name}] Detected change at index {changed_index} (pre_count={len(pre_snapshot)} cur_count={len(cur_snapshot)})")
-                        break
-                    time.sleep(poll_interval)
-
-                if changed_index is None:
-                    return None
-
-                # Phase 2: wait for stability of that element's text
-                last_text = cur_snapshot[changed_index] if changed_index < len(cur_snapshot) else ""
-                last_change = time.time()
-                while time.time() - start_time < response_timeout:
-                    time.sleep(poll_interval)
-                    cur_snapshot = _snapshot_texts()
-                    # if changed_index disappeared, try to treat last element as the target
-                    if changed_index >= len(cur_snapshot):
-                        # element removed? return most-recent last element if present
-                        if cur_snapshot:
-                            candidate = cur_snapshot[-1]
-                        else:
-                            candidate = last_text
-                    else:
-                        candidate = cur_snapshot[changed_index]
-
-                    if candidate != last_text:
-                        last_text = candidate
-                        last_change = time.time()
-                        logger.debug(f"[{app_name}] Change detected; waiting for stability. New text len={len(last_text)}")
-                        continue
-
-                    # unchanged since last poll -> check stability window
-                    wait_time = time.time() - last_change
-                    if wait_time >= stability_window:
-                        return last_text.strip()
-                # timed out, return last seen
-                return last_text.strip()
-
-            # -------------- main retry loop -------------- #
-            last_exception = None
-            for attempt in range(1, max_retries + 1):
-                try:
-                    if not check_and_recover_connection(driver):
-                        return "No response: Internet unavailable"
-
-                    logger.info(f"[{app_name}] Attempt {attempt}: preparing to send prompt.")
-                    logger.info(f"Sending prompt to the bot: {prompt}")
-
-                    # Baseline snapshot BEFORE sending (index-aware)
-                    pre_snapshot = _snapshot_texts()
-                    logger.debug(f"[{app_name}] pre_snapshot count={len(pre_snapshot)}; preview={pre_snapshot[-1] if pre_snapshot else None}")
-
-                    # Ensure input is interactable and cleared before every attempt
-                    box = _ensure_input_interactable(timeout=12)
-                    cleared = _clear_input(box)
-                    if not cleared:
-                        logger.debug(f"[{app_name}] input not verified cleared (attempt {attempt}); proceeding anyway.")
-
-                    # Type the prompt (primary) and optionally click send-button if provided
-                    _type_into_input(box, prompt)
-                    if send_button_xpath:
-                        try:
-                            btn = driver.find_element(By.XPATH, send_button_xpath)
-                            if btn.is_displayed() and btn.is_enabled():
-                                btn.click()
-                                logger.debug(f"[{app_name}] Clicked send button.")
-                        except Exception as e:
-                            logger.debug(f"[{app_name}] send_button click failed: {e}")
-
-                    # Wait for any change (append or update) and for it to stabilize
-                    start_wait = time.time()
-                    final_text = _wait_for_change_and_stability(pre_snapshot)
-                    elapsed = time.time() - start_wait
-
-                    if final_text:
-                        logger.info(f"[{app_name}] Received final response (len={len(final_text)})")
-                        logger.info("(Waited: %.2fs) Received response from %s: %s", elapsed, app_name, final_text)
-                        return final_text
-
-                    logger.warning(f"[{app_name}] No new response after {response_timeout}s (attempt {attempt}).")
-
-                except Exception as e:
-                    last_exception = e
-                    logger.exception(f"[{app_name}] attempt {attempt}/{max_retries} raised exception: {e}")
-                    # save minimal debug info (counts + last exception)
-                    try:
-                        cur_count = len(driver.find_elements(By.XPATH, response_xpath))
-                    except Exception:
-                        cur_count = -1
-                    logger.error(f"[{app_name}] Debug: response_xpath matches {cur_count} elements")
-                    # (optional) save screenshot / page source here if you want deeper debug
-
-                # small backoff before retry
-                if attempt < max_retries:
-                    time.sleep(1.5)
-
-            # final failure
-            if last_exception:
-                logger.error(f"[{app_name}] Last exception before giving up: {traceback.format_exception_only(type(last_exception), last_exception)}")
-            return {
-                    "type": "error",
-                    "content": "No response received"
-                }
-        else:
-            logger.info("Audio mode in CPGRAMS it not implemented yet.")
+    if not handler_name:
+        raise ValueError(f"Unsupported application: {app}")
     
-    elif app_name.lower() == "farmerchat":
-        
-        shadow_root_element = chat_cfg.get("shadow_root_element")
-        prompt_input_box_element = chat_cfg.get("prompt_input_box_element")
-        agent_response_element = chat_cfg.get("agent_response_element")
-        mic_button_element = chat_cfg.get("mic_button_element")
-        audio_message_element = chat_cfg.get("audio_message_element")
-        send_button_element = chat_cfg.get("send_button_element")
-        
-        def wait_for_completion(driver, shadow_host, prev_resp, prev_audio, agent_response_element, timeout=60):
-            start = time.time()
+    if download_dir is None:
+        download_dir = DEFAULT_DOWNLOAD_DIR
 
-            while time.time() - start < timeout:
-                counts = driver.execute_script("""
+    handler = globals()[handler_name]
+
+    for attempt in range(1, max_retries + 1):
+
+        try:
+            return handler(driver, prompt, audio_path, download_dir)
+
+        except Exception as e:
+
+            logger.warning(f"[{app}] attempt {attempt} failed: {e}")
+
+            if attempt == max_retries:
+                raise
+
+            time.sleep(1.5)
+
+
+# ------------------------------------------------------------
+# CPGRAMS HANDLER
+# ------------------------------------------------------------
+
+def handle_cpgrams(driver, prompt, audio_path, download_dir):
+
+    if audio_path:
+        raise NotImplementedError("Audio mode not supported for CPGRAMS")
+
+    cfg = load_xpaths()["applications"]["cpgrams"]["ChatPage"]
+
+    input_xpath = cfg["prompt_input_box_element"]
+    response_xpath = cfg["agent_response_element"]
+
+    input_box = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.XPATH, input_xpath))
+    )
+
+    input_box.clear()
+    input_box.send_keys(prompt)
+    input_box.send_keys(Keys.RETURN)
+
+    text = wait_for_text_response(driver, response_xpath)
+
+    return {
+        "type": "text",
+        "content": text
+    }
+
+
+# ------------------------------------------------------------
+# FARMERCHAT HANDLER
+# ------------------------------------------------------------
+
+def handle_farmerchat(driver, prompt, audio_path, download_dir):
+
+    cfg = load_xpaths()["applications"]["farmerchat"]["ChatPage"]
+
+    iframe_selector = cfg["shadow_root_element"]
+    textarea_selector = cfg["prompt_input_box_element"]
+    response_selector = cfg["agent_response_element"]
+    audio_selector = cfg["audio_message_element"]
+    mic_selector = cfg["mic_button_element"]
+    send_selector = cfg["send_button_element"]
+
+    shadow_host = get_shadow_host(driver, iframe_selector)
+
+    if audio_path:
+        return farmerchat_audio_flow(
+            driver,
+            shadow_host,
+            audio_path,
+            mic_selector,
+            send_selector,
+            audio_selector,
+            response_selector,
+            download_dir
+        )
+
+    textarea = driver.execute_script("""
+        const host = arguments[0];
+        return host.shadowRoot.querySelector(arguments[1]);
+    """, shadow_host, textarea_selector)
+
+    if not textarea:
+        raise RuntimeError("Prompt input box not found")
+    
+    initial_count = driver.execute_script("""
+        const host = arguments[0];
+        return host.shadowRoot.querySelectorAll(arguments[1]).length;
+    """, shadow_host, response_selector)
+
+    textarea.send_keys(prompt)
+    textarea.send_keys(Keys.ENTER)
+
+    text = wait_for_new_shadow_text(driver, shadow_host, response_selector, initial_count)
+
+    return {
+        "type": "text",
+        "content": text
+    }
+
+
+def wait_for_shadow_audio_and_text(driver, shadow_host, audio_selector, text_selector, timeout=60):
+
+    start = time.time()
+
+    last_text = None
+    audio_element = None
+
+    while time.time() - start < timeout:
+
+        result = driver.execute_script("""
+            const host = arguments[0];
+            const audioSel = arguments[1];
+            const textSel = arguments[2];
+
+            const audioNodes = host.shadowRoot.querySelectorAll(audioSel);
+            const textNodes = host.shadowRoot.querySelectorAll(textSel);
+
+            const lastAudio = audioNodes.length ? audioNodes[audioNodes.length-1] : null;
+            const lastText = textNodes.length ? textNodes[textNodes.length-1].textContent : "";
+
+            return {
+                hasAudio: lastAudio && lastAudio.src ? true : false,
+                text: lastText
+            };
+        """, shadow_host, audio_selector, text_selector)
+
+        if result["text"]:
+            txt = result["text"].strip()
+
+            if txt != last_text:
+                last_text = txt
+                last_change = time.time()
+
+        if result["hasAudio"] and last_text and (time.time() - last_change) > 2:
+            audio_element = driver.execute_script("""
                 const host = arguments[0];
-                const selector = arguments[1];
+                const nodes = host.shadowRoot.querySelectorAll(arguments[1]);
+                return nodes[nodes.length - 1];
+            """, shadow_host, audio_selector)
 
-                const responses = host.shadowRoot.querySelectorAll(selector).length;
-                const audios = host.shadowRoot.querySelectorAll('audio').length;
+            return audio_element, last_text
 
-                return {responses: responses, audios: audios};
-                """, shadow_host, agent_response_element)
+        time.sleep(0.5)
 
-                if counts["responses"] > prev_resp and counts["audios"] > prev_audio:
-                    return True
+    raise TimeoutException("Audio/text response timeout")
 
-                time.sleep(5)
 
-            return False
+# ------------------------------------------------------------
+# FARMERCHAT AUDIO FLOW
+# ------------------------------------------------------------
 
-        def get_shadow_host(driver):
+def farmerchat_audio_flow(
+    driver,
+    shadow_host,
+    audio_path,
+    mic_selector,
+    send_selector,
+    audio_selector,
+    response_selector,
+    download_dir
+):
 
-            # switch to iframe
-            iframes = driver.find_elements(By.TAG_NAME, f"{shadow_root_element}")
-            if iframes:
-                driver.switch_to.frame(iframes[0])
+    mic_button = driver.execute_script("""
+        const host = arguments[0];
+        return host.shadowRoot.querySelector(arguments[1]);
+    """, shadow_host, mic_selector)
 
-            shadow_host = driver.execute_script("""
-                return Array.from(document.querySelectorAll('*')).find(el => el.shadowRoot);
-            """)
+    if not mic_button:
+        raise RuntimeError("Mic button not found")
 
-            return shadow_host
+    mic_button.click()
 
-        def send_prompt(driver, shadow_host, message_text):
+    data, sr = sf.read(audio_path, dtype="float32")
 
-            textarea = driver.execute_script("""
+    logger.info(f"Playing audio at {sr} Hz")
+
+    sd.play(data, sr)
+    sd.wait()
+
+    send_button = driver.execute_script("""
+        const host = arguments[0];
+        return host.shadowRoot.querySelector(arguments[1]);
+    """, shadow_host, send_selector)
+
+    if not send_button:
+        raise RuntimeError("Send button not found")
+
+    send_button.click()
+
+    time.sleep(0.5)
+
+    audio_element, text = wait_for_shadow_audio_and_text(
+        driver,
+        shadow_host,
+        audio_selector,
+        response_selector
+    )
+
+    audio_src = audio_element.get_attribute("src")
+
+    audio_result = download_audio(driver, audio_element, audio_src, download_dir)
+
+    if text:
+        audio_result["content"] = text
+
+    return audio_result
+
+# ------------------------------------------------------------
+# WAIT FOR TEXT RESPONSE (NORMAL DOM)
+# ------------------------------------------------------------
+
+def wait_for_text_response(driver, xpath, timeout=60):
+
+    start = time.time()
+
+    while time.time() - start < timeout:
+
+        nodes = driver.find_elements(By.XPATH, xpath)
+
+        if nodes:
+
+            text = nodes[-1].text.strip()
+
+            if text:
+                return text
+
+        time.sleep(0.5)
+
+    raise TimeoutException("Response timeout")
+
+
+# ------------------------------------------------------------
+# WAIT FOR TEXT RESPONSE (SHADOW DOM)
+# ------------------------------------------------------------
+
+def wait_for_new_shadow_text(driver, shadow_host, selector, initial_count, timeout=60, stable_time=3):
+
+    start = time.time()
+    last_text = ""
+    last_change = time.time()
+
+    while time.time() - start < timeout:
+
+        result = driver.execute_script("""
             const host = arguments[0];
-            const selector = arguments[1];
-            return host.shadowRoot.querySelector(selector);
-            """, shadow_host, prompt_input_box_element)
+            const sel = arguments[1];
+            const nodes = host.shadowRoot.querySelectorAll(sel);
 
-            textarea.send_keys(message_text)
-            textarea.send_keys(Keys.ENTER)
+            return {
+                count: nodes.length,
+                text: nodes.length ? nodes[nodes.length-1].textContent : ""
+            };
+        """, shadow_host, selector)
 
-        def get_response(driver, shadow_host):
+        # Wait until a NEW message appears
+        if result["count"] <= initial_count:
+            time.sleep(0.5)
+            continue
 
-            extract_script = """
+        text = (result["text"] or "").strip()
+
+        if text != last_text:
+            last_text = text
+            last_change = time.time()
+
+        # Wait until text stops changing
+        if text and (time.time() - last_change) > stable_time:
+            return text
+
+        time.sleep(0.5)
+
+    raise TimeoutException("New shadow response timeout")
+
+
+# ------------------------------------------------------------
+# WAIT FOR AUDIO RESPONSE
+# ------------------------------------------------------------
+
+def wait_for_shadow_audio(driver, shadow_host, selector, timeout=60):
+
+    start = time.time()
+
+    while time.time() - start < timeout:
+
+        audio = driver.execute_script("""
             const host = arguments[0];
-            const selector = arguments[1];
+            const nodes = host.shadowRoot.querySelectorAll(arguments[1]);
 
-            const responses = host.shadowRoot.querySelectorAll(selector);
+            if (!nodes.length) return null;
 
-            if (responses.length === 0) {
-                return "";
-            }
+            const last = nodes[nodes.length-1];
 
-            return responses[responses.length - 1].innerText;
-            """
+            if (last.src) return last;
 
-            return driver.execute_script(extract_script, shadow_host, agent_response_element).strip()
+            return null;
+        """, shadow_host, selector)
 
-        if not audio_path:
-            last_exception = None
-            for attempt in range(1, max_retries + 1):
-                prev_response_count = 0
-                prev_audio_count = 0
-                try: 
-                    shadow_host = get_shadow_host(driver)
+        if audio:
+            return audio
 
-                    if not shadow_host:
-                        print("Shadow host not found")
-                        return {
-                            "type": "error",
-                            "content": "No response received"
-                        }
+        time.sleep(0.5)
 
-                    prev_response_count = driver.execute_script("""
-                    const host = arguments[0];
-                    const selector = arguments[1];
-                    return host.shadowRoot.querySelectorAll(selector).length;
-                    """, shadow_host, agent_response_element)
+    raise TimeoutException("Audio response timeout")
 
-                    prev_audio_count = driver.execute_script("""
-                    const host = arguments[0];
-                    return host.shadowRoot.querySelectorAll('audio').length;
-                    """, shadow_host)
 
-                    shadow_host = get_shadow_host(driver)
-                    send_prompt(driver, shadow_host, prompt)
-                    logger.info(f"Sent prompt to FarmerChat: {prompt}")
+# ------------------------------------------------------------
+# AUDIO DOWNLOAD + CONVERT TO WAV
+# ------------------------------------------------------------
 
-                    shadow_host = get_shadow_host(driver)
-                    wait_for_completion(driver, shadow_host, prev_response_count, prev_audio_count, audio_message_element)
+def download_audio(driver, audio_element, src, download_dir):
+    os.makedirs(download_dir, exist_ok=True)
 
-                    shadow_host = get_shadow_host(driver)
-                    bot_reply = get_response(driver, shadow_host)
-                    logger.info(f"Received response from FarmerChat: {bot_reply}")
-                    return bot_reply.strip()
+    raw_path = os.path.join(download_dir, "agent_response.raw")
+    wav_path = os.path.join(download_dir, "agent_response.wav")
 
-                except Exception as e:
-                    logger.error(f"Attempt {attempt} failed for FarmerChat: {e}")
-                    if attempt < max_retries:
-                        logger.info("Retrying...")
-                        # save minimal debug info (counts + last exception)
-                        try:
-                            cur_count = driver.execute_script("""
-                                const host = arguments[0];
-                                const selector = arguments[1];
-                                return host.shadowRoot.querySelectorAll(selector).length;
-                                """, shadow_host, agent_response_element)
-                        except Exception:
-                            cur_count = -1
-                        logger.error(f"[{app_name}] Debug: response_xpath matches {cur_count} elements")
-                        time.sleep(1.5)
-                    else:
-                        logger.error("Max retries reached for FarmerChat. Aborting.")
-                        return {
-                            "type": "error",
-                            "content": "No response received"
-                        }
-            
-            # final failure
-            if last_exception:
-                logger.error(f"[{app_name}] Last exception before giving up: {traceback.format_exception_only(type(last_exception), last_exception)}")
-                return {
-                        "type": "error",
-                        "content": "No response received"
-                    }
-            
-        else:
+    if src.startswith("blob:"):
 
-            last_exception = None
-            for attempt in range(1, max_retries + 1):
-                prev_response_count = 0
-                prev_audio_count = 0
-                try: 
-                    shadow_host = get_shadow_host(driver)
+        logger.info("Extracting blob audio")
 
-                    if not shadow_host:
-                        logger.info("Shadow host not found")
-                        return {
-                            "type": "error",
-                            "content": "No response received"
-                        }
-                    
-                    logger.info(f"Found Shadow Host: {shadow_host.tag_name} and style: {shadow_host.get_attribute('style')}")
-                    mic_button = driver.execute_script("""
-                    const host = arguments[0];
-                    const selector = arguments[1];
-                    return host.shadowRoot.querySelector(selector);
-                    """, shadow_host, mic_button_element)  
-                    time.sleep(1)                 
+        base64_data = driver.execute_async_script("""
+            const audio = arguments[0];
+            const callback = arguments[arguments.length - 1];
 
-                    mic_button.click()
-                    data, sr = sf.read(audio_path, dtype="float32")
-                    logger.info(f"Playing audio with sample rate: {sr} Hz")
-                    sd.play(data, sr)
-                    sd.wait()  # wait until playback finishes
-                    logger.info("Playback finished")
-                    time.sleep(3)  # Short delay to ensure the audio is fully processed
+            fetch(audio.src)
+            .then(r => r.blob())
+            .then(blob => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    callback(reader.result.split(',')[1]);
+                };
+                reader.readAsDataURL(blob);
+            })
+            .catch(() => callback(null));
+        """, audio_element)
 
-                    send_button = driver.execute_script("""
-                    const host = arguments[0];
-                    const selector = arguments[1];
-                    return host.shadowRoot.querySelector(selector);
-                    """, shadow_host, send_button_element)
-
-                    prev_response_count = driver.execute_script("""
-                    const host = arguments[0];
-                    const selector = arguments[1];
-                    return host.shadowRoot.querySelectorAll(selector).length;
-                    """, shadow_host, agent_response_element)
-
-                    prev_audio_count = driver.execute_script("""
-                    const host = arguments[0];
-                    return host.shadowRoot.querySelectorAll('audio').length;
-                    """, shadow_host, audio_message_element)
-
-                    send_button.click()
-
-                    logger.info(f"Sent prompt: {prompt}")
-
-                    wait_for_completion(driver, shadow_host, prev_response_count, prev_audio_count, agent_response_element)
-
-                    audio_element = driver.execute_script("""
-                    const host = arguments[0];
-                    const selector = arguments[1];
-                    const audios = host.shadowRoot.querySelectorAll(selector);
-
-                    if (audios.length === 0) return null;
-
-                    return audios[audios.length - 1];
-                    """, shadow_host, audio_message_element)
-                    logger.info(f"Audio element found")
-
-                    audio_src = audio_element.get_attribute("src")
-
-                    r = requests.get(audio_src)
-                    file_path = os.path.join(download_dir, "agent_response.wav")
-
-                    with open(file_path, "wb") as f:
-                        f.write(r.content)
-                    logger.info("Audio downloaded successfully.")
-                    return {
-                        "type": "audio",
-                        "content": "audio downloaded successfully",
-                        "file": file_path
-                    }
-                    
-                except Exception as e:
-                    logger.error(f"Attempt {attempt} failed for FarmerChat: {e}")
-                    if attempt < max_retries:
-                        logger.info("Retrying...")
-                        # save minimal debug info (counts + last exception)
-                        try:
-                            cur_count = driver.execute_script("""
-                                const host = arguments[0];
-                                const selector = arguments[1];
-                                return host.shadowRoot.querySelectorAll(selector).length;
-                                """, shadow_host, audio_message_element)
-                        except Exception:
-                            cur_count = -1
-                        logger.error(f"[{app_name}] Debug: audio_message_xpath matches {cur_count} elements")
-                        time.sleep(1.5)
-                    else:
-                        logger.error("Max retries reached for FarmerChat. Aborting.")
-                        return {
-                            "type": "error",
-                            "content": "No response received"
-                        }
-            
-            # final failure
-            if last_exception:
-                logger.error(f"[{app_name}] Last exception before giving up: {traceback.format_exception_only(type(last_exception), last_exception)}")
-                return {
-                        "type": "error",
-                        "content": "No response received"
-                    }
+        audio_bytes = base64.b64decode(base64_data)
 
     else:
-        logger.error(f"send_message not implemented for app: {app_name}")
-        return "No response received"
+
+        logger.info("Downloading audio via HTTP")
+
+        audio_bytes = requests.get(src).content
+
+    with open(raw_path, "wb") as f:
+        f.write(audio_bytes)
+
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", raw_path, wav_path],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
+
+    os.remove(raw_path)
+
+    logger.info(f"Audio saved → {wav_path}")
+
+    return {
+        "type": "audio",
+        "file": wav_path
+    }
+
+
+# ------------------------------------------------------------
+# SHADOW HOST DISCOVERY
+# ------------------------------------------------------------
+
+def get_shadow_host(driver, iframe_selector):
+
+    frames = driver.find_elements(By.CSS_SELECTOR, iframe_selector)
+
+    if frames:
+        driver.switch_to.frame(frames[0])
+
+    host = driver.execute_script("""
+        return Array.from(document.querySelectorAll('*'))
+        .find(el => el.shadowRoot);
+    """)
+
+    if not host:
+        raise RuntimeError("Shadow host not found")
+
+    return host

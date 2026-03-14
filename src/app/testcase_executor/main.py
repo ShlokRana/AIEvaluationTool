@@ -27,6 +27,7 @@ from lib.utils import get_logger, get_logger_verbosity
 # from lib.voice_layer.tts_engines import IndicParlerTTS, SarvamTTS, Svara_TTS
 
 def is_error_response(response):
+
     error_indicators = [
         "chat not found",
         "[error: max retries exceeded]",
@@ -37,16 +38,24 @@ def is_error_response(response):
     if not response:
         return True
 
-    resp = response[0].get("response", "")
+    text = ""
 
-    # Handle structured responses
-    if isinstance(resp, dict):
-        text = resp.get("content", "")
-    else:
-        text = resp
+    # Handle list response from API
+    if isinstance(response, list) and response:
+        resp = response[0].get("response")
+        if isinstance(resp, dict):
+            text = resp.get("content") or resp.get("file") or ""
+        else:
+            text = resp or ""
 
+    # Handle direct dictionary response
+    elif isinstance(response, dict):
+        resp = response.get("response", response)
+        if isinstance(resp, dict):
+            text = resp.get("content") or resp.get("file") or ""
+        else:
+            text = resp or ""
     text = str(text).lower()
-
     return any(indicator in text for indicator in error_indicators)
 
 def main():
@@ -90,6 +99,7 @@ def main():
     parser.add_argument("--language-strict", "-l", dest="language_strict", action="store_true", help="Enable strict language matching for test case selection based on target's language")
     parser.add_argument("--domain-strict", "-d", dest="domain_strict", action="store_true", help="Enable strict domain matching for test case selection based on target's domain")
     parser.add_argument("--voice", "-V", dest="voice", action="store_true", help="Enable voice evaluation.")
+    parser.add_argument("--audio-file", "-A", dest="audio_file", action="store_true", help="Enable file based voice evaluation")
 
     args = parser.parse_args()
 
@@ -501,16 +511,13 @@ def main():
                                                             prompt_list=[message_to_agent])
                         
                         data = response_from_agent.json().get("response")
+                        agent_response = ""
+
+                        if isinstance(data, list) and data:
+                            data = data[0].get("response", {})
 
                         if isinstance(data, dict):
-                            if data.get("type") == "text":
-                                agent_response = data.get("content", "")
-                            elif data.get("type") == "audio":
-                                agent_response = data.get("file", "")
-                            else:
-                                agent_response = ""
-                        else:
-                            agent_response = data
+                            agent_response = data.get("content") or data.get("file", "")
 
                         # Check if the response is empty or indicates a chat not found
                         # Here, we will leave the Conversation entry dangling in the DB to indicate the the conversation was not successful.
@@ -520,7 +527,7 @@ def main():
                             db.add_or_update_testrun_detail(rundetail)
                         else:
                             conv.response_ts = datetime.now().isoformat()
-                            conv.agent_response = agent_response[0]['response']
+                            conv.agent_response = str(agent_response)
                             db.add_or_update_conversation(conversation=conv)
 
                             rundetail.status = "COMPLETED"
@@ -656,16 +663,13 @@ def main():
                                                             prompt_list=[message_to_agent])
                         
                         data = response_from_agent.json().get("response")
+                        agent_response = ""
+
+                        if isinstance(data, list) and data:
+                            data = data[0].get("response", {})
 
                         if isinstance(data, dict):
-                            if data.get("type") == "text":
-                                agent_response = data.get("content", "")
-                            elif data.get("type") == "audio":
-                                agent_response = data.get("file", "")
-                            else:
-                                agent_response = ""
-                        else:
-                            agent_response = data
+                            agent_response = data.get("content") or data.get("file", "")
 
                         # Check if the response is empty or indicates a chat not found
                         # Here, we will leave the Conversation entry dangling in the DB to indicate the the conversation was not successful.
@@ -676,7 +680,7 @@ def main():
                             continue
 
                         conv.response_ts = datetime.now().isoformat()
-                        conv.agent_response = agent_response[0]['response']
+                        conv.agent_response = str(agent_response)
                         db.add_or_update_conversation(conversation=conv)
 
                         rundetail.status = "COMPLETED"
@@ -793,16 +797,13 @@ def main():
                                                             prompt_list=[message_to_agent])
                         
                         data = response_from_agent.json().get("response")
+                        agent_response = ""
+
+                        if isinstance(data, list) and data:
+                            data = data[0].get("response", {})
 
                         if isinstance(data, dict):
-                            if data.get("type") == "text":
-                                agent_response = data.get("content", "")
-                            elif data.get("type") == "audio":
-                                agent_response = data.get("file", "")
-                            else:
-                                agent_response = ""
-                        else:
-                            agent_response = data
+                            agent_response = data.get("content") or data.get("file", "")
 
                         # Check if the response is empty or indicates a chat not found
                         # Here, we will leave the Conversation entry dangling in the DB to indicate the the conversation was not successful.
@@ -813,7 +814,7 @@ def main():
                             continue
 
                         conv.response_ts = datetime.now().isoformat()
-                        conv.agent_response = agent_response[0]['response']
+                        conv.agent_response = str(agent_response)
                         db.add_or_update_conversation(conversation=conv)
 
                         rundetail.status = "COMPLETED"

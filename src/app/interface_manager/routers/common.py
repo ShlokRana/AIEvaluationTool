@@ -16,7 +16,7 @@ from webapp import (
     get_ui_response_webapp,
 )
 
-from logger import get_logger
+from lib.utils.logger import get_logger
 from utils import load_config
 from context import APIRuntimeContext
 from api_handler import handle_api_chat
@@ -37,6 +37,7 @@ class PromptCreate(BaseModel):
     chat_id: int
     prompt_list: Optional[List[str]] = None
     is_voice: bool = False
+    is_file: bool = False
     audio_path: Optional[str] = None
     return_voice: bool = False
     api_context: Optional[Dict[str, Any]] = None
@@ -88,16 +89,19 @@ def logout():
 
     return JSONResponse(content={"error": "Unsupported application type"})
 
-# new one
 @router.post("/chat")
 async def chat(prompt: PromptCreate):
+
     app_type, app_name = get_app_info()
+    app_type = app_type.upper()
 
-    # ------------------------------------------------
-    # WhatsApp Web (unchanged)
-    # ------------------------------------------------
+    # ---------------------------------------------
+    # WhatsApp Web
+    # ---------------------------------------------
     if app_type == "WHATSAPP_WEB":
+
         logger.info("Chat request: WhatsApp Web")
+
         if prompt.is_voice:
             result = send_prompt_whatsapp(
                 chat_id=prompt.chat_id,
@@ -107,15 +111,18 @@ async def chat(prompt: PromptCreate):
         else:
             result = send_prompt_whatsapp(
                 chat_id=prompt.chat_id,
-                prompt_list=prompt.prompt_list,
+                prompt_list=prompt.prompt_list or [],
             )
-        return JSONResponse(content={"response": result})
 
-    # ------------------------------------------------
-    # WebApp (unchanged)
-    # ------------------------------------------------
-    if str.upper(app_type) == "WEBAPP":
+        return {"response": result}
+
+    # ---------------------------------------------
+    # WebApp
+    # ---------------------------------------------
+    elif app_type == "WEBAPP":
+
         logger.info(f"Chat request: WebApp {app_name}")
+
         if prompt.is_voice:
             result = send_prompt(
                 app_name=app_name,
@@ -127,14 +134,16 @@ async def chat(prompt: PromptCreate):
             result = send_prompt(
                 app_name=app_name,
                 chat_id=prompt.chat_id,
-                prompt_list=prompt.prompt_list,
+                prompt_list=prompt.prompt_list or [],
             )
-        return JSONResponse(content={"response": result})
 
-    # ------------------------------------------------
-    # API (NEW + IMPORTANT)
-    # ------------------------------------------------
-    if str.upper(app_type) == "API":
+        return {"response": result}
+
+    # ---------------------------------------------
+    # API
+    # ---------------------------------------------
+    elif app_type == "API":
+
         logger.info("Chat request: API")
 
         if not prompt.api_context:
@@ -143,24 +152,29 @@ async def chat(prompt: PromptCreate):
                 detail="api_context is required for API application type",
             )
 
-        # Build runtime context
         ctx = APIRuntimeContext.from_dict(prompt.api_context)
 
-        # Execute API call (this is where logs happen)
         result = handle_api_chat(
             ctx=ctx,
             payload={
                 "chat_id": prompt.chat_id,
-                "prompt_list": prompt.prompt_list,
+                "prompt_list": prompt.prompt_list or [],
+                "audio_path": prompt.audio_path,
+                "is_voice": prompt.is_voice
             },
         )
 
-        return JSONResponse(content=result)
+        return result
 
-    # ------------------------------------------------
+    # ---------------------------------------------
     # Unsupported
-    # ------------------------------------------------
-    return JSONResponse(content={"error": "Unsupported application type"})
+    # ---------------------------------------------
+    else:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported application type"
+        )
 
 
 # -------------------------------
