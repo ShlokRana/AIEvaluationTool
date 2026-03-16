@@ -74,3 +74,6 @@ bert-extractive-summarizer
 mariadb
 openai-whisper
 snac
+
+sounddevice
+soundfile
