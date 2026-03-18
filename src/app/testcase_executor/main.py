@@ -156,7 +156,7 @@ def main():
 
     # setting up the database connection
     if config["db"]["engine"] == "sqlite":
-        db_file = config["db"].get("file", "app.db")
+        db_file = config["db"].get("file", config["db"]["database"])
 
         # Resolve project root (this file → importer → app → src → project_root)
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))

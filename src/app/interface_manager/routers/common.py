@@ -16,7 +16,7 @@ from webapp import (
     get_ui_response_webapp,
 )
 
-from lib.utils.logger import get_logger
+from logger import get_logger
 from utils import load_config
 from context import APIRuntimeContext
 from api_handler import handle_api_chat

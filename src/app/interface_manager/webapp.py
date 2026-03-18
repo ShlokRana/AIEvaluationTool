@@ -6,7 +6,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-from lib.utils.logger import get_logger
+from logger import get_logger
 from utils import (
     DriverManager,
     load_config,

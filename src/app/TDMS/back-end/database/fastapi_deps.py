@@ -11,7 +11,7 @@ from lib.orm.DB import DB
 import json
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parents[4]
+BASE_DIR = Path(__file__).resolve().parents[5]
 config_path = BASE_DIR / "config.json"
 try:
     with open(config_path, "r") as f:

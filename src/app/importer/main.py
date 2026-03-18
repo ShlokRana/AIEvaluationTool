@@ -62,7 +62,7 @@ config = json.load(open(args.config, 'r'))
 engine = config['db'].get('engine', 'sqlite').lower()
 
 if engine == "sqlite":
-    sqlite_file = config['db'].get('file', 'app.db')
+    sqlite_file = config['db'].get('file', config["db"]["database"])
 
     # project_root = src/app/importer/../../../
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))

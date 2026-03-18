@@ -826,60 +826,60 @@ td:nth-child(3), th:nth-child(3) {{
 
         return output_file
 
-# Validates Chrome and ChromeDriver versions to ensure they are compatible.
-# This check prevents Selenium WebDriver initialization failures during web evaluations.
-def test_chrome_driver_compatibility():
-    try:
-        logger.info("Starting Chrome–ChromeDriver compatibility check")
+# # Validates Chrome and ChromeDriver versions to ensure they are compatible.
+# # This check prevents Selenium WebDriver initialization failures during web evaluations.
+# def test_chrome_driver_compatibility():
+#     try:
+#         logger.info("Starting Chrome–ChromeDriver compatibility check")
 
-        chrome_commands = [
-            "google-chrome",
-            "google-chrome-stable",
-            "chromium",
-            "chromium-browser"
-        ]
+#         chrome_commands = [
+#             "google-chrome",
+#             "google-chrome-stable",
+#             "chromium",
+#             "chromium-browser"
+#         ]
 
-        chrome_version = None
-        chrome_binary = None
+#         chrome_version = None
+#         chrome_binary = None
 
-        for cmd in chrome_commands:
-            if shutil.which(cmd):
-                chrome_binary = cmd
-                output = subprocess.check_output([cmd, "--version"]).decode().strip()
-                chrome_version = output.split()[2]
-                break
+#         for cmd in chrome_commands:
+#             if shutil.which(cmd):
+#                 chrome_binary = cmd
+#                 output = subprocess.check_output([cmd, "--version"]).decode().strip()
+#                 chrome_version = output.split()[2]
+#                 break
 
-        if not chrome_version:
-            logger.error("No Chrome or Chromium browser found")
-            return False
+#         if not chrome_version:
+#             logger.error("No Chrome or Chromium browser found")
+#             return False
 
-        logger.info("Using browser executable: %s", chrome_binary)
-        logger.info("Detected Chrome version: %s", chrome_version)
+#         logger.info("Using browser executable: %s", chrome_binary)
+#         logger.info("Detected Chrome version: %s", chrome_version)
 
-        driver_output = subprocess.check_output(["chromedriver", "--version"]).decode().strip()
-        driver_version = driver_output.split()[1]
+#         driver_output = subprocess.check_output(["chromedriver", "--version"]).decode().strip()
+#         driver_version = driver_output.split()[1]
 
-        logger.info("Detected ChromeDriver version: %s", driver_version)
+#         logger.info("Detected ChromeDriver version: %s", driver_version)
 
-        chrome_major = int(chrome_version.split(".")[0])
-        driver_major = int(driver_version.split(".")[0])
+#         chrome_major = int(chrome_version.split(".")[0])
+#         driver_major = int(driver_version.split(".")[0])
 
-        version_gap = abs(chrome_major - driver_major)
+#         version_gap = abs(chrome_major - driver_major)
 
-        if version_gap <= 1:
-            logger.info(
-                "Compatibility test PASSED: version gap (%d) within allowed tolerance",
-                version_gap
-            )
-            return True
-        else:
-            logger.error(
-                "Compatibility test FAILED: Chrome %d vs ChromeDriver %d (gap too large)",
-                chrome_major,
-                driver_major
-            )
-            return False
+#         if version_gap <= 1:
+#             logger.info(
+#                 "Compatibility test PASSED: version gap (%d) within allowed tolerance",
+#                 version_gap
+#             )
+#             return True
+#         else:
+#             logger.error(
+#                 "Compatibility test FAILED: Chrome %d vs ChromeDriver %d (gap too large)",
+#                 chrome_major,
+#                 driver_major
+#             )
+#             return False
 
-    except Exception as e:
-        logger.exception("Unexpected error during compatibility check: %s", e)
-        return False
+#     except Exception as e:
+#         logger.exception("Unexpected error during compatibility check: %s", e)
+#         return False

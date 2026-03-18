@@ -31,7 +31,7 @@ APP_HANDLERS = {
     "farmerchat": "handle_farmerchat",
 }
 
-from lib.utils.logger import get_logger
+from logger import get_logger
 
 def load_json(file_path):
     with open(file_path, 'r', encoding='utf-8') as f:
@@ -954,6 +954,9 @@ def handle_farmerchat(driver, prompt, audio_path, download_dir):
         const host = arguments[0];
         return host.shadowRoot.querySelector(arguments[1]);
     """, shadow_host, textarea_selector)
+    
+    # To clear text area
+    textarea.clear()
 
     if not textarea:
         raise RuntimeError("Prompt input box not found")
@@ -964,7 +967,7 @@ def handle_farmerchat(driver, prompt, audio_path, download_dir):
     """, shadow_host, response_selector)
 
     textarea.send_keys(prompt)
-    textarea.send_keys(Keys.ENTER)
+    textarea.send_keys(Keys.RETURN)
 
     text = wait_for_new_shadow_text(driver, shadow_host, response_selector, initial_count)
 
@@ -1256,3 +1259,62 @@ def get_shadow_host(driver, iframe_selector):
         raise RuntimeError("Shadow host not found")
 
     return host
+
+# Validates Chrome and ChromeDriver versions to ensure they are compatible.
+# This check prevents Selenium WebDriver initialization failures during web evaluations.
+def test_chrome_driver_compatibility():
+    try:
+        logger.info("Starting Chrome–ChromeDriver compatibility check")
+
+        chrome_commands = [
+            "google-chrome",
+            "google-chrome-stable",
+            "chromium",
+            "chromium-browser"
+        ]
+
+        chrome_version = None
+        chrome_binary = None
+
+        for cmd in chrome_commands:
+            if shutil.which(cmd):
+                chrome_binary = cmd
+                output = subprocess.check_output([cmd, "--version"]).decode().strip()
+                chrome_version = output.split()[2]
+                break
+
+        if not chrome_version:
+            logger.error("No Chrome or Chromium browser found")
+            return False
+
+        logger.info("Using browser executable: %s", chrome_binary)
+        logger.info("Detected Chrome version: %s", chrome_version)
+
+        driver_output = subprocess.check_output(["chromedriver", "--version"]).decode().strip()
+        driver_version = driver_output.split()[1]
+
+        logger.info("Detected ChromeDriver version: %s", driver_version)
+
+        chrome_major = int(chrome_version.split(".")[0])
+        driver_major = int(driver_version.split(".")[0])
+
+        version_gap = abs(chrome_major - driver_major)
+
+        if version_gap <= 1:
+            logger.info(
+                "Compatibility test PASSED: version gap (%d) within allowed tolerance",
+                version_gap
+            )
+            return True
+        else:
+            logger.error(
+                "Compatibility test FAILED: Chrome %d vs ChromeDriver %d (gap too large)",
+                chrome_major,
+                driver_major
+            )
+            return False
+
+    except Exception as e:
+        logger.exception("Unexpected error during compatibility check: %s", e)
+        return False
+        

@@ -27,7 +27,8 @@ if SRC_DIR not in sys.path:
 from routers import common, chat_router, api
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from lib.strategy.utils_new import test_chrome_driver_compatibility
+from utils import test_chrome_driver_compatibility
+
 # from database import init_db, seed_users
 from contextlib import asynccontextmanager
 
@@ -41,6 +42,9 @@ app.include_router(chat_router.router)
 
 # Public API for frontend consumption
 app.include_router(api.router)
+
+
+
 
 # main driver
 if __name__ == "__main__":

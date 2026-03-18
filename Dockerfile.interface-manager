@@ -11,10 +11,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libmariadb-dev \
     libmariadb-dev-compat \
     pkg-config \
+    portaudio19-dev \
+    libportaudio2 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY src/app/interface_manager/requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+RUN pip install --upgrade pip && pip install --no-cache-dir -r /app/requirements.txt
 
 COPY src/app/interface_manager/ /app
 
