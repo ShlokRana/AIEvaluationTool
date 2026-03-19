@@ -8,6 +8,7 @@ work without requiring the caller to set PYTHONPATH.
 """
 import os
 import sys
+import uvicorn
 
 # Ensure the project's `src` directory is on sys.path so top-level imports
 # like `lib` resolve when running this module directly.
@@ -26,12 +27,12 @@ if SRC_DIR not in sys.path:
 from routers import common, chat_router, api
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from utils import test_chrome_driver_compatibility
+
 # from database import init_db, seed_users
 from contextlib import asynccontextmanager
 
 app = FastAPI(title="LLM Evaluation Suite - Interface Manager")
-
-
 
 # Common routes (login, logout, chat, config)
 app.include_router(common.router)
@@ -42,7 +43,10 @@ app.include_router(chat_router.router)
 # Public API for frontend consumption
 app.include_router(api.router)
 
+
+
+
 # main driver
 if __name__ == "__main__":
-    import uvicorn
+    test_chrome_driver_compatibility()
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

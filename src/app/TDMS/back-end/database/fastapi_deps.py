@@ -9,8 +9,10 @@ from lib.orm.DB import DB
 
 #import argparse 
 import json
+from pathlib import Path
 
-config_path = os.path.join(os.path.dirname(__file__), "config.json")
+BASE_DIR = Path(__file__).resolve().parents[5]
+config_path = BASE_DIR / "config.json"
 try:
     with open(config_path, "r") as f:
         config = json.load(f)

@@ -62,7 +62,5 @@ data/AIEvaluationData.db
 strategy_id/
 Documentations
 
-prep_data/
-audio.wav
-test_audio.py
 reports/
+.dockerignore

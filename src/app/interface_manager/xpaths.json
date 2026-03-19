@@ -1,15 +1,21 @@
 {
   "applications":{
-    "whatsapp_web":
-    {
-      "ChatPage":{
-        "contact_search_element": "//div[@aria-label='Search input textbox' and @contenteditable='true']",
-        "profile_element": "//button[@aria-label='Settings' and @role='button' and @data-tab='2']",
+    "whatsapp_web": {
+      "ChatPage": {
+        "contact_search_element": "//input[@role='textbox' and contains(@aria-label,'Search')]",
+        "profile_element": "//button[@aria-label='You']",
         "logout_button_element": "//button[.//div[text()='Log out']]",
-        "prompt_input_box_element": "//div[@aria-placeholder='Type a message' and @contenteditable='true']",
-        "agent_response_element": ".//div[contains(@class,'copyable-text')]//span[@data-testid='selectable-text']",
+        "prompt_input_box_element": "//div[@role='textbox' and @contenteditable='true']",
+        "agent_response_element": ".//span[@data-testid='selectable-text']",
         "message_in_element": "//div[contains(concat(' ', normalize-space(@class), ' '), ' message-in ')]",
-        "message_out_element": "//div[contains(concat(' ', normalize-space(@class), ' '), ' message-out ')]"
+        "message_out_element": "//div[contains(concat(' ', normalize-space(@class), ' '), ' message-out ')]",
+        "audio_record_button_element": "//span[contains(@data-icon,'mic')]",
+        "send_button_element": "//button[@aria-label='Send']",
+        "audio_message_element": ".//*[@aria-label='Voice message']",
+        "download_menu_element": ".//span[contains(@data-icon,'chevron')]",
+        "download_button_element": "//li[@role='button']//span[contains(text(),'Download')]",
+        "attachment_button_element": "//span[contains(@data-icon='plus')]",
+        "attachment_input_element": ".//span[text()='Audio']"
       }
     },
     "cpgrams": 
@@ -48,6 +54,16 @@
         "model_name_entry_element": "//*[@id='model-search-input']",
         "prompt_input_box_element": "//*[@id='chat-input']/p",
         "agent_response_element": "//*[@id='response-content-container']"
+      }
+    },
+    "farmerchat": {
+      "ChatPage": {
+        "shadow_root_element": "iframe",
+        "prompt_input_box_element": ".gooeyChat-chat-input textarea[placeholder='Message Farmer.CHAT']",
+        "agent_response_element": ".gooey-incomingMsg .text-reveal-container",
+        "mic_button_element": "div.input-right-buttons button.button-text-alt",
+        "audio_message_element": ".gooey-incomingMsg audio[src]",
+        "send_button_element": "button.button-text-alt svg"
       }
     }
   }

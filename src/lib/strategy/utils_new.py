@@ -11,16 +11,8 @@ from ollama import Client, AsyncClient
 from deepeval.models.base_model import DeepEvalBaseLLM
 from typing import Optional, List
 
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.platypus import (
-    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-)
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import mm
-from reportlab.lib import colors
-from reportlab.lib.enums import TA_JUSTIFY
-from reportlab.pdfbase import pdfmetrics
+import subprocess
+import shutil
 
 logger = get_logger("utils_new")
 
@@ -502,211 +494,25 @@ class OllamaConnect:
             return resp[0]["translation"]
         else:
             return ""
-        
 
-# The EvaluationReport class is responsible for generating a PDF report of the evaluation results. 
+# Report Generation class        
+from weasyprint import HTML
+from datetime import datetime
+
 class EvaluationReport:
-    def __init__(self, title="Conversational AI Evaluation Report",
-                 pagesize=A4, margin_mm=15):
 
-        self.title = title
-        self.pagesize = pagesize
-        self.margin = margin_mm * mm
-        self.styles = getSampleStyleSheet()
+    # ---------------------------------------------
+    # Count number of plans
+    # ---------------------------------------------
 
-        # Section heading
-        self.styles.add(
-            ParagraphStyle(
-                name="SectionTitle",
-                parent=self.styles["Heading2"],
-                fontSize=12,
-                leading=14,
-                spaceAfter=6
-            )
-        )
+    def count_plans(self, rows):
 
-        # Left aligned labels for key column
-        self.styles.add(
-            ParagraphStyle(
-                name="BodyLabel",
-                parent=self.styles["BodyText"],
-                fontSize=10,
-                leading=12,
-                alignment=0,        # TA_LEFT
-                spaceAfter=2
-            )
-        )
-
-        # Justified body text
-        self.styles.add(
-            ParagraphStyle(
-                name="Body",
-                parent=self.styles["BodyText"],
-                fontSize=10,
-                leading=12,
-                alignment=TA_JUSTIFY,
-                spaceAfter=4
-            )
-        )
-
-    # -----------------------------------------------------
-
-    def _draw_header(self, canvas, doc):
-        canvas.saveState()
-        canvas.setFont("Helvetica-Bold", 14)
-
-        page_width = self.pagesize[0]
-        canvas.drawCentredString(
-            page_width / 2.0,
-            self.pagesize[1] - self.margin + 6 * mm,
-            self.title
-        )
-
-        canvas.restoreState()
-
-    # -----------------------------------------------------
-
-    def section_title(self, text):
-        return Paragraph(text, self.styles["SectionTitle"])
-
-    def body_text(self, text):
-        return Paragraph(text, self.styles["Body"])
-
-    # -----------------------------------------------------
-
-    def key_value_table(self, kv_pairs):
-        left_w = 40 * mm
-        right_w = self.pagesize[0] - 2 * self.margin - left_w
-
-        data = [
-            [
-                Paragraph(f"<b>{k}:</b>", self.styles["BodyLabel"]),
-                Paragraph(str(v), self.styles["Body"])
-            ]
-            for k, v in kv_pairs
-        ]
-
-        t = Table(data, colWidths=[left_w, right_w], hAlign="LEFT")
-
-        t.setStyle(TableStyle([
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 0),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ]))
-
-        return t
-
-    # -----------------------------------------------------
-
-    def score_table(self, headers, rows, column_widths=None):
-
-        usable_width = self.pagesize[0] - 2 * self.margin
-        font_name = "Helvetica"
-        font_size = 10
-
-        col_count = len(headers)
-
-        # -----------------------------------------------------
-        # CASE 1: Custom column widths provided
-        # -----------------------------------------------------
-        if column_widths:
-
-            if len(column_widths) != col_count:
-                raise ValueError("column_widths must match number of headers")
-
-            colWidths = []
-
-            auto_indices = []
-            fixed_total = 0
-
-            for i, w in enumerate(column_widths):
-                if w is None:
-                    colWidths.append(None)
-                    auto_indices.append(i)
-                else:
-                    colWidths.append(w)
-                    fixed_total += w
-
-            remaining_width = usable_width - fixed_total
-
-            if remaining_width <= 0:
-                raise ValueError("Fixed column widths exceed usable page width")
-
-            # Distribute remaining width equally among auto columns
-            if auto_indices:
-                auto_width = remaining_width / len(auto_indices)
-                for i in auto_indices:
-                    colWidths[i] = auto_width
-
-        # -----------------------------------------------------
-        # CASE 2: Auto-sizing mode
-        # -----------------------------------------------------
-        else:
-
-            data_raw = [headers] + rows
-            max_widths = [0] * col_count
-
-            for row in data_raw:
-                for i, cell in enumerate(row):
-                    text = str(cell)
-                    text_width = pdfmetrics.stringWidth(text, font_name, font_size)
-                    max_widths[i] = max(max_widths[i], text_width)
-
-            padding_buffer = 20
-            colWidths = [w + padding_buffer for w in max_widths]
-
-            total_width = sum(colWidths)
-
-            if total_width > usable_width:
-                scale = usable_width / total_width
-                colWidths = [w * scale for w in colWidths]
-
-            MIN_COL_WIDTH = 40
-            colWidths = [max(w, MIN_COL_WIDTH) for w in colWidths]
-
-            total_width = sum(colWidths)
-            if total_width > usable_width:
-                scale = usable_width / total_width
-                colWidths = [w * scale for w in colWidths]
-
-        # -----------------------------------------------------
-        # Build table
-        # -----------------------------------------------------
-        formatted_data = [
-            [Paragraph(f"<b>{h}</b>", self.styles["Body"]) for h in headers]
-        ]
+        plans = set()
 
         for r in rows:
-            formatted_data.append([
-                Paragraph(str(cell), self.styles["Body"])
-                for cell in r
-            ])
+            plans.add(r[0])
 
-        table = Table(
-            formatted_data,
-            colWidths=colWidths,
-            repeatRows=1,
-            hAlign="LEFT",
-            splitByRow=1
-        )
-
-        table.setStyle(TableStyle([
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("ALIGN", (2, 1), (2, -1), "CENTER"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 5),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-            ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ("BACKGROUND", (0, 0), (-1, 0), colors.whitesmoke),
-            ("WORDWRAP", (0, 0), (-1, -1), "CJK"),
-        ]))
-
-        return table
-
-
-    # -----------------------------------------------------
+        return len(plans)
 
     def scorecard_to_table(self, score_card):
         # Count actual plans (exclude PlanSummary meta key if present)
@@ -754,83 +560,326 @@ class EvaluationReport:
 
         return headers, rows
 
+    # ---------------------------------------------
+    # Build HTML rows
+    # ---------------------------------------------
 
-    # -----------------------------------------------------
+    def build_rows(self, rows, include_plan_summary):
 
-    @classmethod
-    def create_report(
-        cls,
-        target_name: str,
-        run_name: str,
-        timestamp: str,
-        total_testcases: int,
-        target_summary: str,
-        score_card: dict,
-        plan_summary: str = None,
-        out_path: str = None,
-        column_widths: list = None 
+        html_rows = ""
+
+        for r in rows:
+
+            plan = r[0]
+            metric = r[1]
+            score = r[2]
+            metric_summary = r[3]
+            plan_summary = r[4] if len(r) > 4 else ""
+
+            if include_plan_summary:
+
+                html_rows += f"""
+                <tr>
+                    <td>{plan}</td>
+                    <td>{metric}</td>
+                    <td>{score}</td>
+                    <td>{metric_summary}</td>
+                    <td>{plan_summary}</td>
+                </tr>
+                """
+
+            else:
+
+                html_rows += f"""
+                <tr>
+                    <td>{plan}</td>
+                    <td>{metric}</td>
+                    <td>{score}</td>
+                    <td>{metric_summary}</td>
+                </tr>
+                """
+
+        return html_rows
+
+
+    # ---------------------------------------------
+    # Extract plan summary if only one plan
+    # ---------------------------------------------
+
+    def extract_plan_summary(self, score_card):
+        for plan in score_card.values():
+            for metric in plan.values():
+                summary = metric.get("plan_summary")
+                if summary:
+                    return summary
+        return ""
+
+    # ---------------------------------------------
+    # Generate HTML
+    # ---------------------------------------------
+
+    def generate_html(
+        self,
+        target_name,
+        run_name,
+        timestamp,
+        total_testcases,
+        run_summary,
+        headers,
+        rows,
+        score_card
     ):
 
-        inst = cls()
+        plan_count = self.count_plans(rows)
 
-        filename = out_path or f"AI_Evaluation_Report_{target_name}.pdf"
+        include_plan_summary = plan_count > 1
 
-        doc = SimpleDocTemplate(
-            filename,
-            pagesize=inst.pagesize,
-            leftMargin=inst.margin,
-            rightMargin=inst.margin,
-            topMargin=inst.margin,
-            bottomMargin=inst.margin,
-        )
+        table_rows = self.build_rows(rows, include_plan_summary)
 
-        story = []
-
-        story.append(inst.section_title("Experiment Overview"))
-
-        kv = [
-            ("Target Name", target_name),
-            ("Run Name", run_name),
-            ("Timestamp", timestamp),
-            ("Total Test Cases", str(total_testcases)),
-        ]
-
-        story.append(inst.key_value_table(kv))
-        story.append(Spacer(1, 8))
-
-        has_run_summary = any(
-            metric.get("run_summary")
-            for plan in score_card.values()
-            for metric in plan.values()
-            if isinstance(metric, dict)
-        )
-
-        section_title = (
-            "Target Evaluation Run Summary"
-            if has_run_summary
-            else "Target Evaluation Plan Summary"
-        )
-
-        story.append(inst.section_title(section_title))
-
-        if has_run_summary:
-            story.append(inst.body_text(target_summary))
-        elif plan_summary:
-            story.append(inst.body_text(plan_summary))
+        # adjust headers
+        if include_plan_summary:
+            header_html = "".join(f"<th>{h}</th>" for h in headers)
         else:
-            story.append(inst.body_text("No summary available."))
+            header_html = "".join(f"<th>{h}</th>" for h in headers[:-1])
 
-        story.append(Spacer(1, 8))
+        header_html = "".join(f"<th>{h}</th>" for h in headers)
 
-        story.append(inst.section_title("Scores Table"))
+        # column layout
+        if include_plan_summary:
 
-        headers, rows = inst.scorecard_to_table(score_card)
-        story.append(inst.score_table(headers, rows, column_widths=column_widths))
+            colgroup = """
+            <col style="width:15%">
+            <col style="width:20%">
+            <col style="width:7%">
+            <col style="width:29%">
+            <col style="width:29%">
+            """
 
-        doc.build(
-            story,
-            onFirstPage=inst._draw_header,
-            onLaterPages=inst._draw_header
+        else:
+
+            colgroup = """
+            <col style="width:18%">
+            <col style="width:25%">
+            <col style="width:7%">
+            <col style="width:50%">
+            """
+
+        # summary logic
+        summary_section = ""
+
+        if include_plan_summary:
+
+            summary_section = f"""
+            <h2>Target Evaluation Run Summary</h2>
+            <p class="summary">{run_summary}</p>
+            """
+
+        else:
+
+            plan_summary = self.extract_plan_summary(score_card)
+
+            summary_section = f"""
+            <h2>Target Evaluation Plan Summary</h2>
+            <p class="summary">{plan_summary}</p>
+            """
+
+        html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+
+<style>
+
+@page {{
+    size:A4;
+    margin:20mm;
+}}
+
+body {{
+    font-family:"Noto Sans", Arial;
+    font-size:11px;
+    line-height:1.5;
+}}
+
+h1 {{
+    text-align:center;
+}}
+
+table {{
+    width:100%;
+    border-collapse:collapse;
+    table-layout:fixed;
+}}
+
+th,td {{
+    border:1px solid black;
+    padding:6px;
+    vertical-align:top;
+    word-wrap:break-word;
+}}
+
+thead {{
+    display:table-header-group;
+}}
+
+tr {{
+    page-break-inside:avoid;
+}}
+
+.keyvalue td {{
+    border:none;
+}}
+
+.keyvalue td:first-child {{
+    width:180px;
+    font-weight:bold;
+}}
+
+.summary {{
+    text-align:justify;
+}}
+
+td:nth-child(3), th:nth-child(3) {{
+    text-align:center;
+}}
+
+</style>
+
+</head>
+
+<body>
+
+<h1>Conversational AI Evaluation Report</h1>
+
+<h2>Experiment Overview</h2>
+
+<table class="keyvalue">
+
+<tr><td>Target Name</td><td>{target_name}</td></tr>
+<tr><td>Run Name</td><td>{run_name}</td></tr>
+<tr><td>Timestamp</td><td>{timestamp}</td></tr>
+<tr><td>Total Test Cases</td><td>{total_testcases}</td></tr>
+
+</table>
+
+{summary_section}
+
+<h2>Scores Table</h2>
+
+<table>
+
+<colgroup>
+{colgroup}
+</colgroup>
+
+<thead>
+<tr>
+{header_html}
+</tr>
+</thead>
+
+<tbody>
+{table_rows}
+</tbody>
+
+</table>
+
+</body>
+</html>
+"""
+
+        return html
+
+
+    # ---------------------------------------------
+    # Create PDF
+    # ---------------------------------------------
+
+    def create_report(
+        self,
+        target_name,
+        run_name,
+        timestamp,
+        total_testcases,
+        run_summary,
+        headers,
+        rows,
+        score_card,
+        output_file
+    ):
+
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        html = self.generate_html(
+            target_name,
+            run_name,
+            timestamp,
+            total_testcases,
+            run_summary,
+            headers,
+            rows,
+            score_card
         )
 
-        return filename
+        HTML(string=html).write_pdf(output_file)
+
+        return output_file
+
+# # Validates Chrome and ChromeDriver versions to ensure they are compatible.
+# # This check prevents Selenium WebDriver initialization failures during web evaluations.
+# def test_chrome_driver_compatibility():
+#     try:
+#         logger.info("Starting Chrome–ChromeDriver compatibility check")
+
+#         chrome_commands = [
+#             "google-chrome",
+#             "google-chrome-stable",
+#             "chromium",
+#             "chromium-browser"
+#         ]
+
+#         chrome_version = None
+#         chrome_binary = None
+
+#         for cmd in chrome_commands:
+#             if shutil.which(cmd):
+#                 chrome_binary = cmd
+#                 output = subprocess.check_output([cmd, "--version"]).decode().strip()
+#                 chrome_version = output.split()[2]
+#                 break
+
+#         if not chrome_version:
+#             logger.error("No Chrome or Chromium browser found")
+#             return False
+
+#         logger.info("Using browser executable: %s", chrome_binary)
+#         logger.info("Detected Chrome version: %s", chrome_version)
+
+#         driver_output = subprocess.check_output(["chromedriver", "--version"]).decode().strip()
+#         driver_version = driver_output.split()[1]
+
+#         logger.info("Detected ChromeDriver version: %s", driver_version)
+
+#         chrome_major = int(chrome_version.split(".")[0])
+#         driver_major = int(driver_version.split(".")[0])
+
+#         version_gap = abs(chrome_major - driver_major)
+
+#         if version_gap <= 1:
+#             logger.info(
+#                 "Compatibility test PASSED: version gap (%d) within allowed tolerance",
+#                 version_gap
+#             )
+#             return True
+#         else:
+#             logger.error(
+#                 "Compatibility test FAILED: Chrome %d vs ChromeDriver %d (gap too large)",
+#                 chrome_major,
+#                 driver_major
+#             )
+#             return False
+
+#     except Exception as e:
+#         logger.exception("Unexpected error during compatibility check: %s", e)
+#         return False

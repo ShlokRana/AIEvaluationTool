@@ -1,5 +1,5 @@
 import requests
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Dict
 from pydantic import BaseModel
 from collections import defaultdict
 import os, sys
@@ -22,9 +22,18 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..
 ENV_PATH = os.path.join(PROJECT_ROOT, ".env")
 load_dotenv(ENV_PATH)
 
+# class PromptCreate(BaseModel):
+#     chat_id: int
+#     prompt_list: List[str]
+
+# For audio input, we can extend the PromptCreate model like this:
 class PromptCreate(BaseModel):
     chat_id: int
-    prompt_list: List[str]
+    prompt_list: Optional[List[str]] = None
+    is_voice: bool = False
+    audio_path: Optional[str] = None
+    return_voice: bool = False
+    api_context: Optional[Dict[str, Any]] = None
 
 class InterfaceManagerClient:
     def __init__(self,
@@ -95,15 +104,26 @@ class InterfaceManagerClient:
     def close(self) -> requests.Response:
         return self._get("close")
 
-    def chat(self, chat_id: int, prompt_list: List[str]):
-        prompt = " ".join(prompt_list)
+    def chat(
+        self,
+        chat_id: int,
+        prompt_list: Optional[List[str]] = None,
+        is_voice: bool = False,
+        audio_path: Optional[str] = None,
+        return_voice: bool = False,
+    ):
 
-        # Legacy flows
         if self.application_type in ["WHATSAPP_WEB", "WEBAPP"]:
-            payload = PromptCreate(chat_id=chat_id, prompt_list=prompt_list).dict()
+            payload = PromptCreate(
+                chat_id=chat_id,
+                prompt_list=prompt_list,
+                is_voice=is_voice,
+                audio_path=audio_path,
+                return_voice=return_voice,
+            ).model_dump()
+
             return self._post("chat", json=payload)
 
-        # Unified API flow
         if self.application_type == "API":
             payload = {
                 "chat_id": chat_id,
@@ -116,7 +136,6 @@ class InterfaceManagerClient:
                 }
             }
             return self._post("chat", json=payload)
-
 
         raise RuntimeError(f"Unsupported application type: {self.application_type}")
 

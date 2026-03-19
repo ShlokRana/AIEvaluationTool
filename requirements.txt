@@ -64,7 +64,7 @@ levenshtein
 stanza
 zss
 
-reportlab
+weasyprint
 matplotlib
 scipy
 seaborn
@@ -73,5 +73,7 @@ bert-extractive-summarizer
 
 mariadb
 openai-whisper
-parler-tts
 snac
+
+sounddevice
+soundfile

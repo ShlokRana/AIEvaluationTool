@@ -9,6 +9,7 @@ import json
 from typing import List
 from rich.console import Console
 from rich.table import Table
+from pathlib import Path
 
 # setup the relative import path for data module.
 sys.path.append(os.path.join(os.path.dirname(__file__) + '/../../'))  # Adjust the path to 
@@ -58,11 +59,13 @@ def main():
         return
     
     # Load configuration from the specified file if provided
+    BASE_DIR = Path(__file__).resolve().parents[3]
+    config_path = BASE_DIR / args.config
     if args.config:
-        if not os.path.exists(args.config):
+        if not os.path.exists(config_path):
             logger.error(f"Configuration file '{args.config}' does not exist.")
             return
-        with open(args.config, 'r') as config_file:
+        with open(config_path, 'r') as config_file:
             try:
                 config = json.load(config_file)
             except json.JSONDecodeError as e:
@@ -73,14 +76,14 @@ def main():
         return
     
     # setting up the database connection
-    # db_url = f"mariadb+mariadbconnector://{config['database']['user']}:{config['database']['password']}@{config['database']['host']}:{config['database']['port']}/{config['database']['database']}"
+    # db_url = f"mariadb+mariadbconnector://{config["db"]['user']}:{config["db"]['password']}@{config["db"]['host']}:{config["db"]['port']}/{config["db"]['database']}"
 
     # set the default value of project root to current directory, we will adjust it based on the location of this file.
-    project_root = "./"
+    # project_root = "./"
 
     # setting up the database connection
-    if config["database"]["engine"] == "sqlite":
-        db_file = config["database"].get("file", "app.db")
+    if config["db"]["engine"] == "sqlite":
+        db_file = config["db"].get("file", "app.db")
 
         # Resolve project root (this file → importer → app → src → project_root)
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
@@ -99,10 +102,13 @@ def main():
         # Original MariaDB path (fallback)
         db_url = (
             f"mariadb+mariadbconnector://"
-            f"{config['database']['user']}:{config['database']['password']}"
-            f"@{config['database']['host']}:{config['database']['port']}/"
-            f"{config['database']['database']}"
+            f"{config['db']['user']}:{config['db']['password']}"
+            f"@{config['db']['host']}:{config['db']['port']}/"
+            f"{config['db']['database']}"
         )
+
+        # Resolve project root (this file → importer → app → src → project_root)
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
     try:
         logger.info(f"Database URL: {db_url}")
@@ -196,8 +202,7 @@ def main():
                 metric_name,
                 scores=scores,
                 reasons=reasons,
-                language=args.language,
-                tone=args.tone
+                language=args.language
             )
 
             metric_data.update({
@@ -216,7 +221,7 @@ def main():
         if plan_name == "PlanSummary":
             continue
 
-        plan_summary = OllamaConnect.get_single_plan_summary(plan_name, metrics, language=args.language, tone=args.tone)
+        plan_summary = OllamaConnect.get_single_plan_summary(plan_name, metrics, language=args.language)
 
         for metric_data in metrics.values():
             metric_data["plan_summary"] = plan_summary
@@ -225,7 +230,7 @@ def main():
     # ------------------------------------------------------------
     # THIRD PASS: Run-level summary (after plans exist)
     # ------------------------------------------------------------
-    run_summary = OllamaConnect.get_run_summary(score_card, language=args.language, tone=args.tone) if multi_plan else ""
+    run_summary = OllamaConnect.get_run_summary(score_card, language=args.language) if multi_plan else ""
 
     for plan_name, metrics in score_card.items():
         if plan_name == "PlanSummary":
@@ -312,25 +317,31 @@ def main():
     # PDF generation
     # ------------------------------------------------------------
 
-    filename = EvaluationReport.create_report(
+    report = EvaluationReport()
+
+    headers, rows = report.scorecard_to_table(score_card)
+
+    pdf_path = os.path.join(
+        reports_folder,
+        f"AI_Evaluation_Report_{target_name}_{run_name}.pdf"
+    )
+    print(pdf_path)
+    filename = report.create_report(
         target_name=target_name,
         run_name=run_name,
         timestamp=timestamp,
         total_testcases=total_testcases,
-        target_summary=run_summary,
-        plan_summary=plan_summary,
+        run_summary=run_summary,
+        headers=headers,
+        rows=rows,
         score_card=score_card,
-        out_path=os.path.join(
-            reports_folder,
-            f"AI_Evaluation_Report_{target_name}_{run_name}.pdf"
-        ),
-        column_widths=[100, 80, 40, None, None] if multi_plan else [100, 80, 40, None]
+        output_file=pdf_path
     )
 
     logger.info(
         f"PDF Report generated for target: '{target_name}', "
-        f"run: '{run_name}', timestamp: '{timestamp}' "
-        f"with total test cases: {total_testcases}"
+        f"run: '{run_name}', timestamp: '{timestamp}', "
+        f"total test cases: {total_testcases}"
     )
 
     logger.info(f"Report saved to: {filename}")

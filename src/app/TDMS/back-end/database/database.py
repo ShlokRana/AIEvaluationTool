@@ -9,8 +9,11 @@ from config.settings import settings
 from typing import Optional
 import os
 import json
+from pathlib import Path
 
-config_path = os.path.join(os.path.dirname(__file__), "config.json")
+BASE_DIR = Path(__file__).resolve().parents[5]
+config_path = BASE_DIR / "config.json"
+
 try:
     with open(config_path, "r") as f:
         config = json.load(f)
@@ -23,7 +26,7 @@ except FileNotFoundError:
 # SQLALCHEMY_DATABASE_URL = f"sqlite:///{db_path}"
 
 db_cfg = config.get("db", {})
-engine_type = db_cfg.get("engine_type", "sqlite").lower()
+engine_type = db_cfg.get("engine", "sqlite").lower()
 
 if engine_type == "sqlite":
     db_file = db_cfg.get("file", "TDMS.db")
@@ -44,6 +47,7 @@ if engine_type == "sqlite":
     # # Re-create the engine with the new URL
     # engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
     # SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 elif engine_type == "mariadb":
     SQLALCHEMY_DATABASE_URL = "mariadb+mariadbconnector://{user}:{password}@{host}:{port}/{database}".format(
         user=db_cfg.get("user"),
@@ -52,12 +56,13 @@ elif engine_type == "mariadb":
         port=db_cfg.get("port"),
         database=db_cfg.get("database"),
     )
+    engine = create_engine(SQLALCHEMY_DATABASE_URL)
 else: 
     raise ValueError("Unsupported database engine: {engine_type}")
     
     
-engine = create_engine( 
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+# engine = create_engine( 
+#     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

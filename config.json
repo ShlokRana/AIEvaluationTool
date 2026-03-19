@@ -1,6 +1,39 @@
 {
-    "application_name": "Vaidya AI",
-    "application_type": "WHATSAPP_WEB",
-    "agent_name": "Vaidya AI",
-    "application_url": "https://web.whatsapp.com/"
+    "db": {
+        "engine": "mariadb",
+        "host": "db",
+        "port": 3306,
+        "user": "aiet_user",
+        "password": "aiet_password",
+        "database": "aievaluationtool"
+    },
+    "examples":{
+        "db_1":{
+            "engine": "mariadb",
+            "host": "db",
+            "port": 3306,
+            "user": "aiet_user",
+            "password": "aiet_password",
+            "database": "aievaluationtool"
+        },
+        "db_2":{
+            "engine":"sqlite",
+            "file": "example.db"
+        }
+    },
+    "files": {
+        "plans": "data/plans.json",
+        "testcases": "data/updated_datapoints.json",
+        "strategies": "data/strategy_id.json"
+    },
+    "target": {
+        "application_type": "WHATSAPP_WEB",
+        "application_name": "Vaidya AI",
+        "application_url": "https://web.whatsapp.com/",
+        "agent_name": "Vaidya AI"
+    },
+    "interface_manager": {
+        "docker": true,
+        "base_url": "http://interface-manager:8000"
+    }
 }
