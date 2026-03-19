@@ -14,6 +14,7 @@ from typing import Optional, List
 import re
 from langdetect import detect
 import regex as reg
+import vllm
 
 # Adjust the path to include the "lib" directory
 sys.path.append(os.path.dirname(__file__) + "/../../")
@@ -221,7 +222,7 @@ class VoiceLayer:
 
         segments = reg.findall(pattern, text)
         is_eng = reg.compile(r'^[A-Za-z]+$')
-        print(segments)
+        # print(segments)
         texts, langs = [], []
 
         for s in segments:

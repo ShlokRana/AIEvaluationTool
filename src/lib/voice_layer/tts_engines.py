@@ -1,6 +1,5 @@
 import torch
 import soundfile as sf
-# from parler_tts import ParlerTTSForConditionalGeneration
 from transformers import AutoTokenizer
 import warnings
 from sarvamai import SarvamAI
@@ -14,73 +13,17 @@ from typing import List
 import numpy as np
 import torch
 from torch.nn.utils.rnn import pad_sequence
+import time
+from openai import OpenAI
+from vllm import LLM, SamplingParams
+import traceback
 
 warnings.filterwarnings("ignore")
 
-# class IndicParlerTTS:
-
-#     def __init__(self,
-#                  model_name="ai4bharat/indic-parler-tts"):
-
-#         print("[Parler] Loading model...")
-
-#         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-
-#         self.model = ParlerTTSForConditionalGeneration.from_pretrained(
-#             model_name
-#         ).to(self.device)
-
-#         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-
-#         self.desc_tokenizer = AutoTokenizer.from_pretrained(
-#             self.model.config.text_encoder._name_or_path
-#         )
-
-#         self.sr = self.model.config.sampling_rate
-
-#         print("[Parler] Ready on", self.device)
-
-
-#     def audio(self,
-#               text,
-#               output_file="output.wav",
-#               voice_desc=None):
-
-#         print("[Parler] Generating speech...")
-
-#         if voice_desc is None:
-#             voice_desc = (
-#                 "A clear neutral voice, normal pace, studio quality"
-#             )
-
-#         desc_inputs = self.desc_tokenizer(
-#             voice_desc,
-#             return_tensors="pt"
-#         ).to(self.device)
-
-#         text_inputs = self.tokenizer(
-#             text,
-#             return_tensors="pt"
-#         ).to(self.device)
-
-#         with torch.no_grad():
-
-#             gen = self.model.generate(
-#                 input_ids=desc_inputs.input_ids,
-#                 attention_mask=desc_inputs.attention_mask,
-#                 prompt_input_ids=text_inputs.input_ids,
-#                 prompt_attention_mask=text_inputs.attention_mask
-#             )
-
-#         audio = gen.cpu().numpy().squeeze()
-
-#         sf.write(output_file, audio, self.sr)
-
-#         print(f"[Parler] Saved: {output_file}")
 
 class SarvamTTS:
 
-    def __init__(self, api_key, model="bulbul:v3"):
+    def __init__(self, api_key : str, model : str ="bulbul:v3"):
 
         print("[Sarvam] Initializing client...")
 
@@ -99,7 +42,7 @@ class SarvamTTS:
         print("[Sarvam] Ready")
 
 
-    def _detect_lang(self, text):
+    def _detect_lang(self, text : str):
 
         try:
             return detect(text)
@@ -107,7 +50,7 @@ class SarvamTTS:
             return "en"
 
 
-    def get_audio(self, text, output_file="output.wav"):
+    def get_audio(self, text : str, output_file : str ="output.wav"):
 
         print("[Sarvam] Generating speech...")
 
@@ -136,11 +79,20 @@ class Svara_TTS:
         self.snac_model = SNAC.from_pretrained("hubertsiuzdak/snac_24khz")
         self.snac_model = self.snac_model.to(self.device)
 
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_name)
-        self.model = self.model.to(self.device)
+        # self.model = AutoModelForCausalLM.from_pretrained(self.model_name)
+        # self.model = self.model.to(self.device)
+        
+        """vllm model"""
+        self.model = LLM(
+            model="kenpath/svara-tts-v1", # or local path
+            trust_remote_code=True, # only if model needs it
+            gpu_memory_utilization=0.1,
+            max_model_len=2000
+        )
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
     
-    def generate_batch_audio(self, batch_text, languages, gender):
+    def generate_batch_audio(self, batch_text : List, languages : List, gender : str):
+        start = time.time()
         voices = [f"{l} ({gender})" for l in languages]
         formatted_texts = [f"<|audio|> {v}: {t}<|eot_id|>" for v, t in zip(voices, batch_text)]
         prompts = ["<custom_token_3>" + f + "<custom_token_4><custom_token_5>" for f in formatted_texts]
@@ -151,58 +103,99 @@ class Svara_TTS:
         # Add special tokens
         mod_batch_ip_ids = torch.cat([start_token, batch_ip_ids, end_tokens], dim=1)
         # print(mod_batch_ip_ids.shape)
-        ip_ids = mod_batch_ip_ids.to(self.device)
+        ip_ids = mod_batch_ip_ids.to(self.device).tolist()
+        print(ip_ids)
+        # id_ids = torch.tensor([[1,2,3,4],[5,6,7,8]])
 
-        with torch.no_grad():
-            generated_ids = self.model.generate(
-                input_ids=ip_ids,
-                max_new_tokens=4000,
-                do_sample=True,
-                temperature=0.7,
-                top_p=0.95,
-                repetition_penalty=1.2,
-                num_return_sequences=1,
-                eos_token_id=128258,
-            )
+        """vllm code using library"""
+
+        sampling_params = SamplingParams(
+            temperature=0.7,
+            top_p=0.95,
+            max_tokens=2000,
+            stop_token_ids=[128258]
+        )
+        prompts = [
+            {"prompt_token_ids": ids}
+            for ids in ip_ids
+        ]
+
+        print("Working till here")
+        result = self.model.generate(
+            prompts=prompts,
+            sampling_params=sampling_params,
+            
+        )
+
+        generated_ids = [torch.tensor(ip_ids[i] + res.outputs[0].token_ids) for i, res in enumerate(result)]
+
+        # generated_ids = pad_sequence(
+        #     generated_ids,
+        #     batch_first=True,
+        #     padding_value=128263
+        # )
+        print(generated_ids)
+        print("Not working here")
+
+        """ have to insert the vllm code here"""
+        # client = OpenAI(
+        #     base_url="http://localhost:1729/v1",
+        #     api_key="local-token",
+        # )
+
+        # ip_ids = ip_ids.tolist()[0]
+
+        # resp = client.completions.create(
+        #     model="kenpath/svara-tts-v1",
+        #     prompt=None,
+        #     max_tokens=3500,              # like max_new_tokens
+        #     temperature=0.7,
+        #     # prompt_token_ids= ip_ids,
+        #     top_p=0.95,
+        #     # repetition_penalty=1.2,
+        #     n=1,                         # like num_return_sequences=1
+        #     stop=None,
+        #     extra_body={
+        #         # "input_ids" : ip_ids,
+        #         "return_token_ids": True,
+        #         "eos_token_id": 128258,
+        #         # "ignore_eos": True,
+        #         "prompt_token_ids": ip_ids,
+        #     }
+        # )
+
+        # print(resp.choices[0].text)
+
+        # prompt_ids = resp.choices[0].prompt_token_ids
+        # gen_ids = resp.choices[0].token_ids
+        # generated_ids = prompt_ids + gen_ids
+
+        """This is the normal hf working code"""
+        # with torch.no_grad():
+        #     generated_ids = self.model.generate(
+        #         input_ids=ip_ids,
+        #         max_new_tokens=4000,
+        #         do_sample=True,
+        #         temperature=0.7,
+        #         top_p=0.95,
+        #         repetition_penalty=1.2,
+        #         num_return_sequences=1,
+        #         eos_token_id=128258,
+        #     )
+        print("Time for encoder :", time.time() - start)
+
         
-        # print(generated_ids)
+        # print(generated_ids.shape)
         return generated_ids
 
-        # Redistribute codes into hierarchical levels for SNAC decoder
-    def redistribute_codes(self, code_list):
-        """De-interleave SNAC tokens into 3 hierarchical levels"""
-        codes_lvl = [[] for _ in range(3)]
-        llm_codebook_offsets = [i * 4096 for i in range(7)]
-
-        for i in range(0, len(code_list), 7):
-            # Level 0: Coarse
-            codes_lvl[0].append(code_list[i] - llm_codebook_offsets[0])
-            # Level 1: Medium
-            codes_lvl[1].append(code_list[i+1] - llm_codebook_offsets[1])
-            codes_lvl[1].append(code_list[i+4] - llm_codebook_offsets[4])
-            # Level 2: Fine
-            codes_lvl[2].append(code_list[i+2] - llm_codebook_offsets[2])
-            codes_lvl[2].append(code_list[i+3] - llm_codebook_offsets[3])
-            codes_lvl[2].append(code_list[i+5] - llm_codebook_offsets[5])
-            codes_lvl[2].append(code_list[i+6] - llm_codebook_offsets[6])
-
-        # Convert to tensors for SNAC decoder
-        hierarchical_codes = []
-        for lvl_codes in codes_lvl:
-            tensor = torch.tensor(lvl_codes, dtype=torch.long, device=self.device).unsqueeze(0)
-            hierarchical_codes.append(tensor)
-        # Decode with SNAC
-        with torch.no_grad():
-            audio_hat = self.snac_model.decode(hierarchical_codes)
-
-        return audio_hat
-    
+    # Redistribute codes into hierarchical levels for SNAC decoder
     def opt_redistribution(self, code_list):
+        """De-interleave SNAC tokens into 3 hierarchical levels"""
         llm_codebook_offsets = torch.tensor([i * 4096 for i in range(7)], dtype=torch.long, device=self.device)
         A = torch.tensor(code_list, dtype=torch.long, device=self.device)
         A = (A.view(len(A) // 7, 7) - llm_codebook_offsets).reshape(-1)
 
-        col_indices = [torch.tensor([0]), torch.tensor([1, 4]), torch.tensor([2,3,5,6])]
+        col_indices = [torch.tensor([0]), torch.tensor([1, 4]), torch.tensor([2,3,5,6])] # Level 0: Coarse, Level 1: Medium, Level 2: Fine
         hierarchical_codes = []
         for i in range(len(col_indices)):
             chunk = A.view(len(A)//7, 7)[:, col_indices[i]]
@@ -215,17 +208,14 @@ class Svara_TTS:
         batched_levels = [[x[i] for x in hier_codes_list] for i in range(3)]
         batched_levels = [pad_sequence(batched_levels[i], batch_first=True, padding_value=0) for i in range(3)]
 
-        # print([batched_levels[i].shape for i in range(len(batched_levels))])
         with torch.no_grad():
             audio_hat = self.snac_model.decode(batched_levels)
         
         samples_per_token = audio_hat.shape[-1] // batched_levels[0].shape[1]
         combined_audio = torch.cat([audio_hat[i, :, : l1_lengths[i] * samples_per_token] for i in range(len(l1_lengths))], dim=-1)
         return combined_audio
-    
 
     def create_audio_arr(self, row):
-
         # Parse output tokens to extract SNAC codes
         START_OF_SPEECH_TOKEN = 128257
         END_OF_SPEECH_TOKEN = 128258
@@ -252,15 +242,8 @@ class Svara_TTS:
         else:
             raise ValueError("No speech tokens found in generated output.")
 
-        # print(snac_tokens)
-        # Generate audio waveform
-        # audio_waveform = self.opt_redistribution(snac_tokens)
         hier_codes = self.opt_redistribution(snac_tokens)
 
-        # Convert to numpy array
-        # audio_array = audio_waveform.detach().squeeze().to("cpu").numpy()
-
-        # return audio_array
         return hier_codes
 
     def generate_audio_from_text(self, text : str | List[str], language : str | List[str], gender : str):
@@ -278,15 +261,11 @@ class Svara_TTS:
 
         if isinstance(text, list):
             gen_ids = self.generate_batch_audio(text, language, gender)
-            # audio_arr = []
-            # for r in gen_ids:
-            #    audio_arr.append(self.create_audio_arr(r))
             hier_codes = []
             for r in gen_ids:
                 hier_codes.append(self.create_audio_arr(r))
             audio_op = self.decode_to_audio(hier_codes)
             audio_arr = audio_op.detach().reshape(-1).to("cpu").numpy()
-            # print(audio_op.shape)
         else:
             raise ValueError("No text to convert to audio.")
 
