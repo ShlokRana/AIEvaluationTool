@@ -15,6 +15,7 @@ from rich.table import Table
 from datetime import datetime
 import randomname  # Importing the randomname library for generating random names
 from pathlib import Path
+import requests
 
 sys.path.append(os.path.dirname(__file__) + "/../../")  # Adjust the path to include the "lib" directory
 

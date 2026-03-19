@@ -16,10 +16,11 @@ from langdetect import detect
 import regex as reg
 import vllm
 
+from .voice_layer.tts_engines import SarvamTTS, Svara_TTS
+from .voice_layer.asr_engines import IndicConformerASR, WhisperASR  
 # Adjust the path to include the "lib" directory
 sys.path.append(os.path.dirname(__file__) + "/../../")
-from lib.voice_layer.tts_engines import SarvamTTS, Svara_TTS
-from lib.voice_layer.asr_engines import IndicConformerASR, WhisperASR  
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -175,13 +176,12 @@ class VoiceLayer:
             case "sarvam":
                 self.tts = SarvamTTS(os.getenv("SARVAM_TTS_API_KEY"))
             case "svara":
-                self.tts = Svara_TTS()
+                self.tts = Svara_TTS(use_vllm=False)
             case _:
                 raise ValueError("Specified TTS engine not available.")
         self.logger = get_logger(__name__, loglevel=loglevel)
     
     def segs_and_langs(self, text : str):
-        # text = "You are a agriculture assistant. Understand and answer the question briefly. क्या मैं जैविक तरीकों से अपनी मिट्टी की उर्वरता बढ़ा सकता हूँ? कृपया 2 उपाय बताएं और यह भी समझाएं कि ये किस वैज्ञानिक सिद्धांत पर आधारित हैं।"
 
         lang_map = {
             "as": "Assamese",
@@ -216,7 +216,7 @@ class VoiceLayer:
         ]
 
         pattern = "|".join(
-            fr"(?:[\p{{Script={s}}}\p{{N}}]+(?:\s+[\p{{Script={s}}}\p{{N}}]+)*)[^\p{{L}}]*"
+            fr"(?:\p{{Script={s}}}+[\p{{N}}\p{{P}}\p{{Zs}}]*)+"
             for s in scripts
         )
 
@@ -227,7 +227,7 @@ class VoiceLayer:
 
         for s in segments:
             to_cmp = s.strip()
-            if not s:
+            if not to_cmp:
                 continue
             if bool(is_eng.match(to_cmp)):
                 langs.append(lang_map["en"])
@@ -248,7 +248,7 @@ class VoiceLayer:
                 self.tts.get_audio(text, file_save_path)
             else:
                 text_segs, langs = self.segs_and_langs(text)
-                self.tts.get_audio(text_segs, file_save_path, langs, gender="Male")
+                self.tts.get_audio(text_segs, langs, file_save_path, gender="Male")
             return file_save_path
         
         except Exception as e:
