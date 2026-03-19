@@ -72,120 +72,86 @@ class SarvamTTS:
 
 class Svara_TTS:
 
-    def __init__(self):
+    def __init__(self, use_vllm : bool = True):
         self.model_name = "kenpath/svara-tts-v1"
         self.device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
         self.snac_model = SNAC.from_pretrained("hubertsiuzdak/snac_24khz")
         self.snac_model = self.snac_model.to(self.device)
+        self.use_vllm = use_vllm
 
-        # self.model = AutoModelForCausalLM.from_pretrained(self.model_name)
-        # self.model = self.model.to(self.device)
-        
-        """vllm model"""
-        self.model = LLM(
-            model="kenpath/svara-tts-v1", # or local path
-            trust_remote_code=True, # only if model needs it
-            gpu_memory_utilization=0.1,
-            max_model_len=2000
-        )
+        if not self.use_vllm:
+            self.model = AutoModelForCausalLM.from_pretrained(self.model_name)
+            self.model = self.model.to(self.device)
+        else:
+            """vllm model"""    
+            self.model = LLM(
+                model="kenpath/svara-tts-v1", # or local path
+                trust_remote_code=True, # only if model needs it
+                gpu_memory_utilization=0.1,
+                max_model_len=2000
+            )
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
     
     def generate_batch_audio(self, batch_text : List, languages : List, gender : str):
-        start = time.time()
         voices = [f"{l} ({gender})" for l in languages]
         formatted_texts = [f"<|audio|> {v}: {t}<|eot_id|>" for v, t in zip(voices, batch_text)]
         prompts = ["<custom_token_3>" + f + "<custom_token_4><custom_token_5>" for f in formatted_texts]
+        
 
-        batch_ip_ids = self.tokenizer(prompts, return_tensors="pt", padding=True)["input_ids"]
+        self.tokenizer.pad_token_id = 128263
+        batch_ip_ids = self.tokenizer(prompts, return_tensors="pt", padding=True, padding_side="right")["input_ids"]
+        attention_mask = self.tokenizer(prompts, return_tensors="pt", padding=True, padding_side="right")["attention_mask"]
+        # Add special tokens
         start_token = torch.tensor([[128259]], dtype=torch.int64).repeat(len(batch_text), 1)
         end_tokens = torch.tensor([[128009, 128260, 128261, 128257]], dtype=torch.int64).repeat(len(batch_text), 1)
-        # Add special tokens
         mod_batch_ip_ids = torch.cat([start_token, batch_ip_ids, end_tokens], dim=1)
-        # print(mod_batch_ip_ids.shape)
-        ip_ids = mod_batch_ip_ids.to(self.device).tolist()
-        print(ip_ids)
-        # id_ids = torch.tensor([[1,2,3,4],[5,6,7,8]])
+        mod_attention_mask = torch.cat([torch.ones_like(start_token), attention_mask, torch.ones_like(end_tokens)], dim=1) 
 
         """vllm code using library"""
+        if self.use_vllm:
+            ip_ids = mod_batch_ip_ids.to(self.device).tolist()
+            mod_attention_mask = mod_attention_mask.tolist()
+            sampling_params = SamplingParams(
+                temperature=0.7,
+                top_p=0.95,
+                max_tokens=4000,
+                repetition_penalty=1.2,
+                stop_token_ids=[128258],
+            )
+            prompts = [
+                {"prompt_token_ids": ids, "attention_mask" : att_mask}
+                for ids, att_mask in zip(ip_ids, mod_attention_mask)
+            ]
 
-        sampling_params = SamplingParams(
-            temperature=0.7,
-            top_p=0.95,
-            max_tokens=2000,
-            stop_token_ids=[128258]
-        )
-        prompts = [
-            {"prompt_token_ids": ids}
-            for ids in ip_ids
-        ]
+            results = []
 
-        print("Working till here")
-        result = self.model.generate(
-            prompts=prompts,
-            sampling_params=sampling_params,
-            
-        )
+            for p in prompts:
+                result = self.model.generate(
+                    prompts=[p],
+                    sampling_params=sampling_params,
+                    
+                )
+                results.append(result)
 
-        generated_ids = [torch.tensor(ip_ids[i] + res.outputs[0].token_ids) for i, res in enumerate(result)]
+            generated_ids = [torch.tensor(ip_ids[i] + res[0].outputs[0].token_ids) for i, res in enumerate(results)]
 
-        # generated_ids = pad_sequence(
-        #     generated_ids,
-        #     batch_first=True,
-        #     padding_value=128263
-        # )
-        print(generated_ids)
-        print("Not working here")
-
-        """ have to insert the vllm code here"""
-        # client = OpenAI(
-        #     base_url="http://localhost:1729/v1",
-        #     api_key="local-token",
-        # )
-
-        # ip_ids = ip_ids.tolist()[0]
-
-        # resp = client.completions.create(
-        #     model="kenpath/svara-tts-v1",
-        #     prompt=None,
-        #     max_tokens=3500,              # like max_new_tokens
-        #     temperature=0.7,
-        #     # prompt_token_ids= ip_ids,
-        #     top_p=0.95,
-        #     # repetition_penalty=1.2,
-        #     n=1,                         # like num_return_sequences=1
-        #     stop=None,
-        #     extra_body={
-        #         # "input_ids" : ip_ids,
-        #         "return_token_ids": True,
-        #         "eos_token_id": 128258,
-        #         # "ignore_eos": True,
-        #         "prompt_token_ids": ip_ids,
-        #     }
-        # )
-
-        # print(resp.choices[0].text)
-
-        # prompt_ids = resp.choices[0].prompt_token_ids
-        # gen_ids = resp.choices[0].token_ids
-        # generated_ids = prompt_ids + gen_ids
-
-        """This is the normal hf working code"""
-        # with torch.no_grad():
-        #     generated_ids = self.model.generate(
-        #         input_ids=ip_ids,
-        #         max_new_tokens=4000,
-        #         do_sample=True,
-        #         temperature=0.7,
-        #         top_p=0.95,
-        #         repetition_penalty=1.2,
-        #         num_return_sequences=1,
-        #         eos_token_id=128258,
-        #     )
-        print("Time for encoder :", time.time() - start)
-
-        
-        # print(generated_ids.shape)
+        else:
+            """This is the normal hf working code"""
+            ip_ids = mod_batch_ip_ids.to(self.device)
+            att_mask = mod_attention_mask.to(self.device)
+            with torch.no_grad():
+                generated_ids = self.model.generate(
+                    input_ids=ip_ids,
+                    max_new_tokens=4000,
+                    do_sample=True,
+                    temperature=0.7,
+                    top_p=0.95,
+                    repetition_penalty=1.2,
+                    num_return_sequences=1,
+                    eos_token_id=128258,
+                    attention_mask=att_mask
+                )
         return generated_ids
 
     # Redistribute codes into hierarchical levels for SNAC decoder
@@ -199,7 +165,7 @@ class Svara_TTS:
         hierarchical_codes = []
         for i in range(len(col_indices)):
             chunk = A.view(len(A)//7, 7)[:, col_indices[i]]
-            chunk = chunk.reshape(-1)#.unsqueeze(0)
+            chunk = chunk.reshape(-1)
             hierarchical_codes.append(chunk)
         return hierarchical_codes
         
