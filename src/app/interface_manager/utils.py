@@ -25,6 +25,7 @@ import sounddevice as sd
 import soundfile as sf
 import base64
 import subprocess
+import shutil
 
 APP_HANDLERS = {
     "cpgrams": "handle_cpgrams",
