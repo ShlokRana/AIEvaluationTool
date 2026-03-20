@@ -360,6 +360,8 @@ def login_app(driver: webdriver.Chrome, app_name: str) -> bool:
         logout_cfg = app_cfg.get("LogoutPage")
         cred_cfg = load_creds()["applications"].get(app_name.lower(), {})
 
+        time.sleep(30)
+
         if not login_cfg:
             logger.info(f"{app_name} has no LoginPage config → skipping login")
             return True
@@ -422,6 +424,9 @@ def search_entity(driver: webdriver.Chrome, app_name: str) -> bool:
     app_cfg = load_xpaths()["applications"][app_name.lower()]
     chat_cfg = app_cfg["ChatPage"]
     entity_name = cfg.get("agent_name")
+    contact_selection = chat_cfg.get("contact_selection_xpath")
+
+    print(contact_selection)
 
     try:
         search_input_xpath = chat_cfg.get("contact_search_element") or chat_cfg.get("model_name_entry_element")
@@ -434,7 +439,11 @@ def search_entity(driver: webdriver.Chrome, app_name: str) -> bool:
         )
         search_box.clear()
         search_box.send_keys(entity_name)
-        search_box.send_keys(Keys.RETURN)
+        
+        contact_select = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.XPATH, contact_selection))
+        )
+        contact_select.click()
 
         logger.info(f"{app_name}: '{entity_name}' search successful")
         return True

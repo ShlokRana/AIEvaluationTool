@@ -3,6 +3,7 @@
     "whatsapp_web": {
       "ChatPage": {
         "contact_search_element": "//input[@role='textbox' and contains(@aria-label,'Search')]",
+        "contact_selection_xpath": "//span[@title='Vaidya AI']",
         "profile_element": "//button[@aria-label='You']",
         "logout_button_element": "//button[.//div[text()='Log out']]",
         "prompt_input_box_element": "//div[@role='textbox' and @contenteditable='true']",
