@@ -27,7 +27,7 @@ if SRC_DIR not in sys.path:
 from routers import common, chat_router, api
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from utils import test_chrome_driver_compatibility
+# from utils import test_chrome_driver_compatibility
 from logger import get_logger
 
 logger = get_logger("interface_manager")
@@ -48,8 +48,6 @@ app.include_router(api.router)
 
 
 # main driver
-if __name__ == "__main__":
-    if test_chrome_driver_compatibility():
-        uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-    else:
-        logger.error("ChromeDriver compatibility check failed. Ensure Chrome and ChromeDriver versions match. Server startup aborted.")
+if __name__ == "__main__":      
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+

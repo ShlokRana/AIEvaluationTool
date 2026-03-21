@@ -1272,59 +1272,63 @@ def get_shadow_host(driver, iframe_selector):
 
 # Validates Chrome and ChromeDriver versions to ensure they are compatible.
 # This check prevents Selenium WebDriver initialization failures during web evaluations.
-def test_chrome_driver_compatibility():
-    try:
-        logger.info("Starting Chrome–ChromeDriver compatibility check")
+def test_chrome_driver_compatibility(container_name=None):
+    BASE_CMD = (
+        "(google-chrome --version 2>/dev/null || "
+        "google-chrome-stable --version 2>/dev/null || "
+        "chromium --version 2>/dev/null || "
+        "chromium-browser --version 2>/dev/null) && "
+        "chromedriver --version 2>/dev/null"
+    )
 
-        chrome_commands = [
-            "google-chrome",
-            "google-chrome-stable",
-            "chromium",
-            "chromium-browser"
-        ]
+    def run(cmd):
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True
+        )
+        return result.stdout if result.returncode == 0 else None
 
-        chrome_version = None
-        chrome_binary = None
+    def parse(output):
+        try:
+            lines = output.strip().split("\n")
+            chrome = next(l for l in lines if "Chrome" in l).split()[2]
+            driver = next(l for l in lines if "ChromeDriver" in l).split()[1]
+            return int(chrome.split(".")[0]), int(driver.split(".")[0])
+        except Exception:
+            return None, None
 
-        for cmd in chrome_commands:
-            if shutil.which(cmd):
-                chrome_binary = cmd
-                output = subprocess.check_output([cmd, "--version"]).decode().strip()
-                chrome_version = output.split()[2]
-                break
+    # -------------------------
+    # MODE SELECTION (HOST ONLY)
+    # -------------------------
+    if container_name:
+        source = f"DOCKER:{container_name}"
+        cmd = ["docker", "exec", container_name, "sh", "-c", BASE_CMD]
+        key = "docker"
+    else:
+        source = "LOCAL"
+        cmd = ["sh", "-c", BASE_CMD]
+        key = "local"
 
-        if not chrome_version:
-            logger.error("No Chrome or Chromium browser found")
-            return False
+    # -------------------------
+    # EXECUTION
+    # -------------------------
+    output = run(cmd)
 
-        logger.info("Using browser executable: %s", chrome_binary)
-        logger.info("Detected Chrome version: %s", chrome_version)
+    if not output:
+        logger.error(f"[Mode: {source}] Chrome/Driver not available")
+        return {key: False}
 
-        driver_output = subprocess.check_output(["chromedriver", "--version"]).decode().strip()
-        driver_version = driver_output.split()[1]
+    chrome_major, driver_major = parse(output)
 
-        logger.info("Detected ChromeDriver version: %s", driver_version)
+    if chrome_major is None or driver_major is None:
+        logger.error(f"[Mode: {source}] Failed to parse versions")
+        return {key: False}
 
-        chrome_major = int(chrome_version.split(".")[0])
-        driver_major = int(driver_version.split(".")[0])
-
-        version_gap = abs(chrome_major - driver_major)
-
-        if version_gap <= 1:
-            logger.info(
-                "Compatibility test PASSED: version gap (%d) within allowed tolerance",
-                version_gap
-            )
-            return True
-        else:
-            logger.error(
-                "Compatibility test FAILED: Chrome %d vs ChromeDriver %d (gap too large)",
-                chrome_major,
-                driver_major
-            )
-            return False
-
-    except Exception as e:
-        logger.exception("Unexpected error during compatibility check: %s", e)
-        return False
-        
+    if chrome_major == driver_major:
+        logger.info(f"[Mode: {source}] PASS: Chrome {chrome_major} == Driver {driver_major}")
+        return {key: True}
+    else:
+        logger.error(f"[Mode: {source}] FAIL: Chrome {chrome_major} != Driver {driver_major}")
+        return {key: False}
