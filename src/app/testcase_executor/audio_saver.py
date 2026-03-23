@@ -15,4 +15,6 @@ class EncAudio:
             return None
         with open(file_path, "rb") as f:
             audio_bytes = f.read()
+        print(audio_bytes)
+        logger.info("audio bytes ready..")
         return audio_bytes

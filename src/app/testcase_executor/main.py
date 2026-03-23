@@ -531,6 +531,8 @@ def main():
                         if isinstance(data, dict):
                             agent_response = data.get("content") or data.get("file", "")
 
+                        print(data)
+
                         # Check if the response is empty or indicates a chat not found
                         # Here, we will leave the Conversation entry dangling in the DB to indicate the the conversation was not successful.
                         if is_error_response(agent_response):
@@ -540,7 +542,7 @@ def main():
                         else:
                             conv.response_ts = datetime.now().isoformat()
                             conv.agent_response = str(agent_response)
-                            conv.encoded_audio = EncAudio.encode_audio(agent_response)
+                            conv.encoded_audio = EncAudio.encode_audio(data['file'])
                             db.add_or_update_conversation(conversation=conv)
 
                             rundetail.status = "COMPLETED"
@@ -688,6 +690,8 @@ def main():
                         if isinstance(data, dict):
                             agent_response = data.get("content") or data.get("file", "")
 
+                        print(data)
+
                         # Check if the response is empty or indicates a chat not found
                         # Here, we will leave the Conversation entry dangling in the DB to indicate the the conversation was not successful.
                         if is_error_response(agent_response):
@@ -698,7 +702,7 @@ def main():
 
                         conv.response_ts = datetime.now().isoformat()
                         conv.agent_response = str(agent_response)
-                        conv.encoded_audio = EncAudio.encode_audio(agent_response)
+                        conv.encoded_audio = EncAudio.encode_audio(data['file'])
                         db.add_or_update_conversation(conversation=conv)
 
                         rundetail.status = "COMPLETED"
@@ -826,6 +830,8 @@ def main():
 
                         if isinstance(data, dict):
                             agent_response = data.get("content") or data.get("file", "")
+                        
+                        print(data)
 
                         # Check if the response is empty or indicates a chat not found
                         # Here, we will leave the Conversation entry dangling in the DB to indicate the the conversation was not successful.
@@ -837,7 +843,7 @@ def main():
 
                         conv.response_ts = datetime.now().isoformat()
                         conv.agent_response = str(agent_response)
-                        conv.encoded_audio = EncAudio.encode_audio(agent_response)
+                        conv.encoded_audio = EncAudio.encode_audio(data['file'])
                         db.add_or_update_conversation(conversation=conv)
 
                         rundetail.status = "COMPLETED"

@@ -53,7 +53,7 @@ def wait_until_complete(filepath):
 logger = get_logger("interface_manager")
 
 # Setting up a consistent download directory for all apps using this driver instance.
-download_dir = Path.cwd().parents[2] / "agent_response_cache" 
+download_dir = Path(__file__).resolve().parent.parent.parent.parent / "agent_response_cache" 
 os.makedirs(download_dir, exist_ok=True)
 DEFAULT_DOWNLOAD_DIR = download_dir
 
@@ -440,8 +440,8 @@ def search_entity(driver: webdriver.Chrome, app_name: str) -> bool:
         search_box.clear()
         search_box.send_keys(entity_name)
         
-        contact_select = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.XPATH, contact_selection))
+        contact_select = WebDriverWait(driver, 15).until(
+            EC.element_to_be_clickable((By.XPATH, contact_selection))
         )
         contact_select.click()
 
@@ -987,7 +987,7 @@ def handle_farmerchat(driver, prompt, audio_path, download_dir):
     }
 
 
-def wait_for_shadow_audio_and_text(driver, shadow_host, audio_selector, text_selector, timeout=60):
+def wait_for_shadow_audio_and_text(driver, shadow_host, audio_selector, text_selector, timeout=30):
 
     start = time.time()
 
@@ -1076,7 +1076,7 @@ def farmerchat_audio_flow(
 
     send_button.click()
 
-    time.sleep(0.5)
+    time.sleep(10)
 
     audio_element, text = wait_for_shadow_audio_and_text(
         driver,
@@ -1165,7 +1165,7 @@ def wait_for_new_shadow_text(driver, shadow_host, selector, initial_count, timeo
 # WAIT FOR AUDIO RESPONSE
 # ------------------------------------------------------------
 
-def wait_for_shadow_audio(driver, shadow_host, selector, timeout=60):
+def wait_for_shadow_audio(driver, shadow_host, selector, timeout=30):
 
     start = time.time()
 
@@ -1196,14 +1196,14 @@ def wait_for_shadow_audio(driver, shadow_host, selector, timeout=60):
 # AUDIO DOWNLOAD + CONVERT TO WAV
 # ------------------------------------------------------------
 
+import uuid
+
 def download_audio(driver, audio_element, src, download_dir):
     os.makedirs(download_dir, exist_ok=True)
 
-    raw_path = os.path.join(download_dir, "agent_response.raw")
-    wav_path = os.path.join(download_dir, "agent_response.wav")
+    file_path = os.path.join(download_dir, f"agent_response_{uuid.uuid4().hex}.wav")
 
     if src.startswith("blob:"):
-
         logger.info("Extracting blob audio")
 
         base64_data = driver.execute_async_script("""
@@ -1222,31 +1222,24 @@ def download_audio(driver, audio_element, src, download_dir):
             .catch(() => callback(null));
         """, audio_element)
 
+        if not base64_data:
+            raise RuntimeError("Failed to extract blob audio")
+
         audio_bytes = base64.b64decode(base64_data)
 
     else:
-
         logger.info("Downloading audio via HTTP")
 
-        audio_bytes = requests.get(src).content
+        response = requests.get(src, timeout=10)
+        response.raise_for_status()
+        audio_bytes = response.content
 
-    with open(raw_path, "wb") as f:
+    with open(file_path, "wb") as f:
         f.write(audio_bytes)
 
-    subprocess.run(
-        ["ffmpeg", "-y", "-i", raw_path, wav_path],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
-    )
+    logger.info(f"Audio saved → {file_path}")
 
-    os.remove(raw_path)
-
-    logger.info(f"Audio saved → {wav_path}")
-
-    return {
-        "type": "audio",
-        "file": wav_path
-    }
+    return {"type": "audio", "file": file_path}
 
 
 # ------------------------------------------------------------
