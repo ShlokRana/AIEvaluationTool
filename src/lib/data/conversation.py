@@ -6,6 +6,7 @@
 from pydantic import BaseModel, Field
 from typing import Any, Optional
 
+
 class Conversation(BaseModel):
     """
     Represents a conversation in the response analysis system.
@@ -29,10 +30,11 @@ class Conversation(BaseModel):
     evaluation_score: Optional[float] = Field(None, description="The evaluation score assigned to the agent response.")
     evaluation_reason: Optional[str] = Field(None, description="The reason or explanation for the evaluation score.")
     evaluation_ts:Optional[str] = Field(None, description="ISO Timestamp when the evaluation was performed.")
+    encoded_audio:Optional[bytes] = Field(None, description="Encoded aaudio file in base64 format.")
     kwargs: dict = Field(default_factory=dict, description="Additional keyword arguments for future extensibility")
 
     def __init__(self, target: str, run_detail_id: int, testcase: str, agent_response: Optional[str] = None, prompt_ts: Optional[str] = None, response_ts: Optional[str] = None,
-                 evaluation_score: Optional[float] = None, evaluation_reason: Optional[str] = None, evaluation_ts: Optional[str] = None, **kwargs):
+                 evaluation_score: Optional[float] = None, evaluation_reason: Optional[str] = None, evaluation_ts: Optional[str] = None, encoded_audio : Optional[bytes]= None,**kwargs):
         """
         Initializes a Conversation instance.
         Args:
@@ -44,7 +46,7 @@ class Conversation(BaseModel):
             kwargs: Additional keyword arguments for future extensibility.
         """
         super().__init__(target=target, run_detail_id=run_detail_id, testcase=testcase, agent_response=agent_response, prompt_ts=prompt_ts, response_ts=response_ts,
-                         evaluation_score=evaluation_score, evaluation_reason=evaluation_reason, evaluation_ts=evaluation_ts, kwargs=kwargs)
+                         evaluation_score=evaluation_score, evaluation_reason=evaluation_reason, evaluation_ts=evaluation_ts, encoded_audio=encoded_audio, kwargs=kwargs)
 
     def __getattr__(self, name: str) -> Any:
         """
@@ -84,7 +86,8 @@ class Conversation(BaseModel):
                 self.response_ts == other.response_ts and
                 self.evaluation_score == other.evaluation_score and
                 self.evaluation_reason == other.evaluation_reason and
-                self.evaluation_ts == other.evaluation_ts)
+                self.evaluation_ts == other.evaluation_ts and
+                self.encoded_audio == other.encoded_audio)
 
     def __hash__(self):
         """
@@ -93,4 +96,4 @@ class Conversation(BaseModel):
         Returns:
             int: The hash value of the instance.
         """
-        return hash((self.target, self.testcase, self.agent_response, self.prompt_ts, self.response_ts, self.evaluation_score, self.evaluation_reason, self.evaluation_ts))
+        return hash((self.target, self.testcase, self.agent_response, self.prompt_ts, self.response_ts, self.evaluation_score, self.evaluation_reason, self.evaluation_ts, self.encoded_audio))

@@ -1,7 +1,7 @@
 {
     "db": {
         "engine": "mariadb",
-        "host": "db",
+        "host": "localhost",
         "port": 3306,
         "user": "aiet_user",
         "password": "aiet_password",
@@ -33,7 +33,7 @@
         "agent_name": "Vaidya AI"
     },
     "interface_manager": {
-        "docker": true,
+        "docker": false,
         "base_url": "http://interface-manager:8000"
     }
 }

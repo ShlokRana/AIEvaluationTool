@@ -1,5 +1,5 @@
 from sqlalchemy.orm import DeclarativeBase, relationship
-from sqlalchemy import Column, Integer, Text, DateTime, String, Enum, ForeignKey, Float, Boolean
+from sqlalchemy import Column, Integer, Text, DateTime, String, Enum, ForeignKey, Float, Boolean, LargeBinary
 from sqlalchemy_utils import ChoiceType
 from datetime import datetime
 import uuid
@@ -215,6 +215,7 @@ class Conversations(Base):
     response_ts = Column(DateTime, nullable=True)  # End timestamp of the conversation
     evaluation_score = Column(Float, nullable=True)  # The evaluation score assigned to the agent response
     evaluation_reason = Column(Text, nullable=True)  # The reason or explanation for the evaluation score   
+    encoded_audio = Column(LargeBinary, nullable=True) # Audio as encoding if returned from the evaluated bot.
     evaluation_ts = Column(DateTime, nullable=True)  # Timestamp when the evaluation was performed
 
     target = relationship("Targets", back_populates="conversations")  # Relationship to Targets

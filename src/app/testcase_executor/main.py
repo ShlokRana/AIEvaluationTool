@@ -16,6 +16,7 @@ from datetime import datetime
 import randomname  # Importing the randomname library for generating random names
 from pathlib import Path
 import requests
+from audio_saver import EncAudio
 
 sys.path.append(os.path.dirname(__file__) + "/../../")  # Adjust the path to include the "lib" directory
 
@@ -171,9 +172,6 @@ def main():
 
         # SQLite requires a file URL
         db_url = f"sqlite:///{db_path}"
-
-        AUDIO_DIR =  os.path.join(project_root,"audio_cache")
-        os.makedirs(AUDIO_DIR, exist_ok=True)
 
     else:
         # Original MariaDB path (fallback)
@@ -485,6 +483,9 @@ def main():
                         db.add_or_update_conversation(conversation=conv)
 
                         if args.voice:
+                            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+                            AUDIO_DIR =  os.path.join(project_root,"audio_cache")
+                            os.makedirs(AUDIO_DIR, exist_ok=True)
                             try:
                                 req = {"text": message_to_agent}
                                 response = requests.post(
@@ -534,6 +535,7 @@ def main():
                         else:
                             conv.response_ts = datetime.now().isoformat()
                             conv.agent_response = str(agent_response)
+                            conv.encoded_audio = EncAudio.encode_audio(agent_response)
                             db.add_or_update_conversation(conversation=conv)
 
                             rundetail.status = "COMPLETED"
@@ -637,6 +639,9 @@ def main():
                         db.add_or_update_conversation(conversation=conv)
 
                         if args.voice:
+                            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+                            AUDIO_DIR =  os.path.join(project_root,"audio_cache")
+                            os.makedirs(AUDIO_DIR, exist_ok=True)
                             try:
                                 req = {"text": message_to_agent}
                                 response = requests.post(
@@ -687,6 +692,7 @@ def main():
 
                         conv.response_ts = datetime.now().isoformat()
                         conv.agent_response = str(agent_response)
+                        conv.encoded_audio = EncAudio.encode_audio(agent_response)
                         db.add_or_update_conversation(conversation=conv)
 
                         rundetail.status = "COMPLETED"
@@ -771,6 +777,9 @@ def main():
                         db.add_or_update_conversation(conversation=conv)
 
                         if args.voice:
+                            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+                            AUDIO_DIR =  os.path.join(project_root,"audio_cache")
+                            os.makedirs(AUDIO_DIR, exist_ok=True)
                             try:
                                 req = {"text": message_to_agent}
                                 response = requests.post(
@@ -821,6 +830,7 @@ def main():
 
                         conv.response_ts = datetime.now().isoformat()
                         conv.agent_response = str(agent_response)
+                        conv.encoded_audio = EncAudio.encode_audio(agent_response)
                         db.add_or_update_conversation(conversation=conv)
 
                         rundetail.status = "COMPLETED"

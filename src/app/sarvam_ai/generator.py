@@ -14,7 +14,6 @@ from typing import Optional, List
 import re
 from langdetect import detect
 import regex as reg
-import vllm
 
 from .voice_layer.tts_engines import SarvamTTS, Svara_TTS
 from .voice_layer.asr_engines import IndicConformerASR, WhisperASR  
