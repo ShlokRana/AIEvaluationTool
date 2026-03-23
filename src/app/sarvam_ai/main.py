@@ -13,6 +13,7 @@ from translator import SarvamAITranslator
 from generator import SarvamAIGenerator, VoiceLayer
 from safety import ShieldGemmaSafety
 from fastapi.responses import FileResponse
+from contextlib import asynccontextmanager
 
 # Adjust the path to include the "lib" directory
 sys.path.append(os.path.dirname(__file__) + "/../../")  
@@ -33,12 +34,22 @@ from lib.utils.logger import get_logger
 # class ReqForVoice(BaseModel):
 #     text : str
 
-app = FastAPI(title="Sarvam AI Application")
+# app = FastAPI(title="Sarvam AI Application")
 translator = SarvamAITranslator()
 generator = SarvamAIGenerator()
-voice_layer = VoiceLayer(tts_model="svara")
+# voice_layer = VoiceLayer(tts_model="svara")
 
 safety_engine: Optional[ShieldGemmaSafety] = None
+
+voice_layer = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global voice_layer
+    voice_layer = VoiceLayer(tts_model="svara")
+    yield
+
+app = FastAPI(title="Sarvam AI Application", lifespan=lifespan)
 
 @app.post("/translate")
 def translate_text(input_text: str, target_language: str):
