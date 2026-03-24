@@ -440,8 +440,10 @@ def search_entity(driver: webdriver.Chrome, app_name: str) -> bool:
         search_box.clear()
         search_box.send_keys(entity_name)
         
-        contact_select = WebDriverWait(driver, 15).until(
-            EC.element_to_be_clickable((By.XPATH, contact_selection))
+        time.sleep(10)
+
+        contact_select = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.XPATH, contact_selection))
         )
         contact_select.click()
 
@@ -584,7 +586,7 @@ def send_file_whatsapp(driver, file_path, chat_cfg):
 def wait_for_whatsapp_audio_or_text_response(
     driver,
     chat_cfg,
-    download_dir,
+    download_dir="",
     timeout=60,
     audio_grace=20
 ):
@@ -764,6 +766,9 @@ def send_message_whatsapp(
     max_retries = 3
     attempt = 0
 
+    if download_dir is None:
+        download_dir = DEFAULT_DOWNLOAD_DIR
+
     config = load_config()
     app_name = config.get("application_type")
 
@@ -814,6 +819,8 @@ def send_message_whatsapp(
                     audio_path,
                     chat_cfg
                 )
+
+                print("DEBUG download_dir:", download_dir)
 
                 response = wait_for_whatsapp_audio_or_text_response(
                     driver,
@@ -875,14 +882,14 @@ def send_message_webapp(
     max_retries=3,
 ):
 
+    if download_dir is None:
+        download_dir = DEFAULT_DOWNLOAD_DIR
+
     app = app_name.lower()
     handler_name = APP_HANDLERS.get(app)
 
     if not handler_name:
         raise ValueError(f"Unsupported application: {app}")
-    
-    if download_dir is None:
-        download_dir = DEFAULT_DOWNLOAD_DIR
 
     handler = globals()[handler_name]
 
