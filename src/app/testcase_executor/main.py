@@ -499,7 +499,7 @@ def main():
                                 )
 
                                 if response.status_code == 200:
-                                    filename = f"tts_{testcase.testcase_id}.wav"
+                                    filename = "temp_tts_audio.wav"
                                     audio_path = os.path.join(AUDIO_DIR, filename)
                                     with open(audio_path, "wb") as f:
                                         f.write(response.content)
@@ -658,7 +658,7 @@ def main():
                                 )
 
                                 if response.status_code == 200:
-                                    filename = f"tts_{testcase.testcase_id}.wav"
+                                    filename = "temp_tts_audio.wav"
                                     audio_path = os.path.join(AUDIO_DIR, filename)
                                     with open(audio_path, "wb") as f:
                                         f.write(response.content)

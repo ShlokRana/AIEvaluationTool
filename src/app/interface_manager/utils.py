@@ -586,7 +586,7 @@ def send_file_whatsapp(driver, file_path, chat_cfg):
 def wait_for_whatsapp_audio_or_text_response(
     driver,
     chat_cfg,
-    download_dir="",
+    download_dir,
     timeout=60,
     audio_grace=20
 ):

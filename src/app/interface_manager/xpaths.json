@@ -14,7 +14,7 @@
         "send_button_element": "//button[@aria-label='Send']",
         "audio_message_element": ".//*[@aria-label='Voice message']",
         "download_menu_element": ".//span[contains(@data-icon,'chevron')]",
-        "download_button_element": "//li[@role='button']//span[contains(text(),'Download')]",
+        "download_button_element": "//div[@role='menuitem' and @aria-label='Download']",
         "attachment_button_element": "//span[contains(@data-icon='plus')]",
         "attachment_input_element": ".//span[text()='Audio']"
       }
