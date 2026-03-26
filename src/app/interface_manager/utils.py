@@ -986,6 +986,8 @@ def handle_farmerchat(driver, prompt, audio_path, download_dir):
     textarea.send_keys(prompt)
     textarea.send_keys(Keys.RETURN)
 
+    time.sleep(10)
+    
     text = wait_for_new_shadow_text(driver, shadow_host, response_selector, initial_count)
 
     return {
@@ -1118,6 +1120,10 @@ def wait_for_text_response(driver, xpath, timeout=60):
             text = nodes[-1].text.strip()
 
             if text:
+                logger.info(
+                    f"(Waited:{int(time.time() - start)}) "
+                    f"Received: {text}"
+                    )
                 return text
 
         time.sleep(0.5)
@@ -1161,6 +1167,10 @@ def wait_for_new_shadow_text(driver, shadow_host, selector, initial_count, timeo
 
         # Wait until text stops changing
         if text and (time.time() - last_change) > stable_time:
+            logger.info(
+                    f"(Waited:{int(time.time() - start)}) "
+                    f"Received: {text}"
+                    )
             return text
 
         time.sleep(0.5)
