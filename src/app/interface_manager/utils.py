@@ -85,6 +85,7 @@ class DriverManager:
         opts = Options()
         opts.add_argument("--no-sandbox")
         opts.add_argument("--start-maximized")
+        opts.add_argument("--mute-audio")
         prefs = {
             "download.default_directory": str(download_dir),
             "profile.default_content_setting_values.media_stream_mic": 1,
