@@ -16,6 +16,6 @@ class EncAudio:
             return None
         with open(file_path, "rb") as audio_file:
                 encoded_bytes = base64.b64encode(audio_file.read())
-                # encoded_str = encoded_bytes.decode("utf-8")
+                encoded_str = encoded_bytes.decode("utf-8")
         logger.info("audio bytes ready..")
-        return encoded_bytes
+        return encoded_str
