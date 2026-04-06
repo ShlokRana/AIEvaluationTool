@@ -1,0 +1,9 @@
+services:
+  web:
+    build: .
+    ports:
+      - "16000:16000"
+    environment:
+      - HF_HOME=/models
+    # volumes:
+    #   - "${MODEL_PATH}:/models"

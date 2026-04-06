@@ -1,3 +1,9 @@
+vllm
+sarvamai
+langdetect
+soundfile
+snac
+
 fastapi
 uvicorn
 transformers

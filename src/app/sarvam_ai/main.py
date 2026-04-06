@@ -16,9 +16,9 @@ from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 
 # Adjust the path to include the "lib" directory
-sys.path.append(os.path.dirname(__file__) + "/../../")  
+# sys.path.append(os.path.dirname(__file__) + "/../../")  
 
-from lib.utils.logger import get_logger
+from logger import get_logger
 # from logger import get_logger
 
 # # Request/Response Models
@@ -46,7 +46,7 @@ voice_layer = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global voice_layer
-    voice_layer = VoiceLayer(tts_model="svara")
+    voice_layer = VoiceLayer(tts_model="svara", use_vllm=True)
     yield
 
 app = FastAPI(title="Sarvam AI Application", lifespan=lifespan)
@@ -117,6 +117,7 @@ def get_hidden(text : str):
 @app.post("/tts")
 def text_to_speech(text : str):
     try:
+        global voice_layer
         if not text.strip():
             raise HTTPException(status_code=400, detail="Text cannot be empty.")
         audio_path = voice_layer.convert_to_audio(text)
