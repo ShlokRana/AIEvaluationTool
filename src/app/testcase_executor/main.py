@@ -492,18 +492,18 @@ def main():
                             AUDIO_DIR =  os.path.join(project_root,"audio_cache")
                             os.makedirs(AUDIO_DIR, exist_ok=True)
                             try:
-                                # req = {"text": message_to_agent}
-                                # response = requests.post(
-                                #     f"{os.getenv('GPU_URL')}/tts",
-                                #     params=req
-                                # )
+                                req = {"text": message_to_agent}
+                                response = requests.post(
+                                    f"{os.getenv('GPU_URL')}/tts",
+                                    params=req
+                                )
 
-                                # if response.status_code == 200:
-                                    filename = "temp_tts_audio_3.wav"
+                                if response.status_code == 200:
+                                    filename = "temp_tts_audio.wav"
                                     audio_path = os.path.join(AUDIO_DIR, filename)
-                                    # with open(audio_path, "wb") as f:
-                                    #     f.write(response.content)
-                                    # logger.info(f"TTS audio saved at {audio_path}")
+                                    with open(audio_path, "wb") as f:
+                                        f.write(response.content)
+                                    logger.info(f"TTS audio saved at {audio_path}")
 
                                     # send audio instead of text
                                     response_from_agent = client.chat(
@@ -511,10 +511,10 @@ def main():
                                         is_voice=True,
                                         audio_path=str(audio_path)
                                     )
-                                # else:
-                                #     logger.error(
-                                #         f"TTS failed: {response.status_code} {response.text}"
-                                #     )
+                                else:
+                                    logger.error(
+                                        f"TTS failed: {response.status_code} {response.text}"
+                                    )
                             except Exception as e:
                                 logger.error(f"Voice pipeline failed: {e}")
                         else:
@@ -660,18 +660,18 @@ def main():
                             AUDIO_DIR =  os.path.join(project_root,"audio_cache")
                             os.makedirs(AUDIO_DIR, exist_ok=True)
                             try:
-                                # req = {"text": message_to_agent}
-                                # response = requests.post(
-                                #     f"{os.getenv('GPU_URL')}/tts",
-                                #     params=req
-                                # )
+                                req = {"text": message_to_agent}
+                                response = requests.post(
+                                    f"{os.getenv('GPU_URL')}/tts",
+                                    params=req
+                                )
 
-                                # if response.status_code == 200:
-                                    filename = "temp_tts_audio_3.wav"
+                                if response.status_code == 200:
+                                    filename = "temp_tts_audio.wav"
                                     audio_path = os.path.join(AUDIO_DIR, filename)
-                                    # with open(audio_path, "wb") as f:
-                                    #     f.write(response.content)
-                                    # logger.info(f"TTS audio saved at {audio_path}")
+                                    with open(audio_path, "wb") as f:
+                                        f.write(response.content)
+                                    logger.info(f"TTS audio saved at {audio_path}")
 
                                     # send audio instead of text
                                     response_from_agent = client.chat(
@@ -679,10 +679,10 @@ def main():
                                         is_voice=True,
                                         audio_path=str(audio_path)
                                     )
-                            #     else:
-                            #         logger.error(
-                            #             f"TTS failed: {response.status_code} {response.text}"
-                            #         )
+                                else:
+                                    logger.error(
+                                        f"TTS failed: {response.status_code} {response.text}"
+                                    )
                             except Exception as e:
                                 logger.error(f"Voice pipeline failed: {e}")
                         else:
@@ -810,18 +810,18 @@ def main():
                             AUDIO_DIR =  os.path.join(project_root,"audio_cache")
                             os.makedirs(AUDIO_DIR, exist_ok=True)
                             try:
-                                # req = {"text": message_to_agent}
-                                # response = requests.post(
-                                #     f"{os.getenv('GPU_URL')}/tts",
-                                #     params=req
-                                # )
+                                req = {"text": message_to_agent}
+                                response = requests.post(
+                                    f"{os.getenv('GPU_URL')}/tts",
+                                    params=req
+                                )
 
-                                # if response.status_code == 200:
-                                    filename = "temp_tts_audio_3.wav"
+                                if response.status_code == 200:
+                                    filename = "temp_tts_audio.wav"
                                     audio_path = os.path.join(AUDIO_DIR, filename)
-                                    # with open(audio_path, "wb") as f:
-                                    #     f.write(response.content)
-                                    # logger.info(f"TTS audio saved at {audio_path}")
+                                    with open(audio_path, "wb") as f:
+                                        f.write(response.content)
+                                    logger.info(f"TTS audio saved at {audio_path}")
 
                                     # send audio instead of text
                                     response_from_agent = client.chat(
@@ -829,10 +829,10 @@ def main():
                                         is_voice=True,
                                         audio_path=str(audio_path)
                                     )
-                                # else:
-                                #     logger.error(
-                                #         f"TTS failed: {response.status_code} {response.text}"
-                                #     )
+                                else:
+                                    logger.error(
+                                        f"TTS failed: {response.status_code} {response.text}"
+                                    )
                             except Exception as e:
                                 logger.error(f"Voice pipeline failed: {e}")
                         else:
