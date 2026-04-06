@@ -3,6 +3,7 @@ sarvamai
 langdetect
 soundfile
 snac
+openai-whisper
 
 fastapi
 uvicorn
