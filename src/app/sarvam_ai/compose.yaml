@@ -9,7 +9,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
     volumes:
-      - "${HF_CACHE_PATH}:/root/.cache/huggingface"
+      - "${HF_CACHE_PATH}:/models" #/root/.cache/huggingface"
     env_file:
       - .env
     deploy:
