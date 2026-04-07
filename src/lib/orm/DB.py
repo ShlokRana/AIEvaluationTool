@@ -3805,6 +3805,7 @@ class DB:
                         setattr(existing_conversation, "evaluation_score", conversation.evaluation_score)
                         setattr(existing_conversation, "evaluation_reason", conversation.evaluation_reason)
                         setattr(existing_conversation, "evaluation_ts", self._ensure_datetime(conversation.evaluation_ts))
+                        setattr(existing_conversation, "encoded_audio", conversation.encoded_audio)
                     # update the agent response details.
                     else:
                         if existing_conversation.prompt_ts is None and conversation.prompt_ts is not None:
@@ -3824,6 +3825,7 @@ class DB:
                         setattr(existing_conversation, "agent_response", conversation.agent_response)
                         setattr(existing_conversation, "prompt_ts", self._ensure_datetime(conversation.prompt_ts))
                         setattr(existing_conversation, "response_ts", self._ensure_datetime(conversation.response_ts))
+                        setattr(existing_conversation, "encoded_audio", conversation.encoded_audio)
                     
                     # Commit the session to save the updated conversation
                     session.commit()
@@ -3845,7 +3847,8 @@ class DB:
                                                 response_ts=self._ensure_datetime(conversation.response_ts),
                                                 evaluation_score=conversation.evaluation_score,
                                                 evaluation_reason=conversation.evaluation_reason,
-                                                evaluation_ts=self._ensure_datetime(conversation.evaluation_ts)
+                                                encoded_audio=conversation.encoded_audio,
+                                                evaluation_ts=self._ensure_datetime(conversation.evaluation_ts),
                                             )
 
 

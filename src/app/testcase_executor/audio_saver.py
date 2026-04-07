@@ -1,5 +1,6 @@
 import sys
 import os
+import base64
 
 sys.path.append(os.path.dirname(__file__) + "/../../")
 from lib.utils import get_logger
@@ -13,8 +14,7 @@ class EncAudio:
         if not os.path.exists(file_path):
             logger.error(f"Specified path {file_path} does not exist. Make sure the file is present.")
             return None
-        with open(file_path, "rb") as f:
-            audio_bytes = f.read()
-        print(audio_bytes)
+        with open(file_path, "rb") as audio_file:
+                encoded_bytes = base64.b64encode(audio_file.read())
         logger.info("audio bytes ready..")
-        return audio_bytes
+        return encoded_bytes
