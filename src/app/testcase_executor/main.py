@@ -583,7 +583,7 @@ def main():
                     return
                 
                 # Verify that the metric is part of the test plan
-                is_metric_in_plan = db.is_metric_in_testplan(metric_name=metric_name, plan_name=plan_name)
+                is_metric_in_plan = db.is_metric_in_testplan(metric_name=metric_name.split('/')[0], plan_name=plan_name)
                 if not is_metric_in_plan:
                     logger.error(f"Metric '{metric_name}' (ID: {args.metric_id}) is not part of the test plan '{plan_name}' (ID: {args.plan_id}).")
                     return
