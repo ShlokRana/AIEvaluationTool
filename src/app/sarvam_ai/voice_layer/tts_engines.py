@@ -86,10 +86,10 @@ class Svara_TTS:
         else:
             """vllm model"""    
             self.model = LLM(
-                model="kenpath/svara-tts-v1", # or local path
-                trust_remote_code=True, # only if model needs it
+                model=self.model_name, # or local path
+                trust_remote_code=True,
                 gpu_memory_utilization=0.1,
-                max_model_len=2000
+                max_model_len=4000
             )
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
     

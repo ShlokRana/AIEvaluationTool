@@ -1,0 +1,21 @@
+services:
+  web:
+    build: .
+    ports:
+      - "16000:16000"
+    environment:
+      - HF_HOME=/models
+      - HUGGINGFACE_HUB_TOKEN=${HF_TOKEN}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    volumes:
+      - "${HF_CACHE_PATH}:/models" #/root/.cache/huggingface"
+    env_file:
+      - .env
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

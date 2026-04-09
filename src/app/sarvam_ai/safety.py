@@ -16,10 +16,10 @@ from googletrans import Translator
 # from utils import detect_text, google_lang_translate
 
 # Adjust the path to include the "lib" directory
-sys.path.append(os.path.dirname(__file__) + "/../../")  
+# sys.path.append(os.path.dirname(__file__) + "/../../")  
 
-from lib.utils.logger import get_logger
-# from logger import get_logger
+from logger import get_logger
+# from lib.utils.logger import get_logger
 
 logger = get_logger("safety_strategy")
 

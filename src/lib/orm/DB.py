@@ -1,4 +1,3 @@
-
 from sqlalchemy import create_engine, select, update
 from sqlalchemy.orm import sessionmaker, scoped_session, joinedload
 from sqlalchemy.exc import IntegrityError
@@ -1698,9 +1697,6 @@ class DB:
                         #session.add(new_testcase)
                 
                 if len(new_testcases) == 0:
-                    # Existing testcase->metric associations may have been appended above.
-                    # Commit those relationship updates before returning.
-                    session.commit()
                     self.logger.debug(f"No new test cases to add for metric '{metric.metric_name}'.")
                     return True
                 
@@ -3589,6 +3585,23 @@ class DB:
                              plan_name=result.plan.plan_name,
                              status=getattr(result, "testcase_status"),
                              detail_id=detail_id)
+
+    def get_run_details_by_run_id(self, run_id: int) -> list[RunDetail]:
+        with self.Session() as session:
+            sql = select(TestRunDetails).where(TestRunDetails.run_id == run_id)
+            results = session.execute(sql).scalars().all()
+
+            return [
+                RunDetail(
+                    run_name=r.run.run_name,
+                    testcase_name=r.testcase.testcase_name,
+                    metric_name=r.metric.metric_name,
+                    plan_name=r.plan.plan_name,
+                    status=r.testcase_status,
+                    detail_id=r.detail_id
+                )
+                for r in results
+            ]                         
         
     def add_or_update_testrun_detail(self, run_detail: RunDetail) -> int:
         """
@@ -3792,6 +3805,7 @@ class DB:
                         setattr(existing_conversation, "evaluation_score", conversation.evaluation_score)
                         setattr(existing_conversation, "evaluation_reason", conversation.evaluation_reason)
                         setattr(existing_conversation, "evaluation_ts", self._ensure_datetime(conversation.evaluation_ts))
+                        setattr(existing_conversation, "encoded_audio", conversation.encoded_audio)
                     # update the agent response details.
                     else:
                         if existing_conversation.prompt_ts is None and conversation.prompt_ts is not None:
@@ -3811,6 +3825,7 @@ class DB:
                         setattr(existing_conversation, "agent_response", conversation.agent_response)
                         setattr(existing_conversation, "prompt_ts", self._ensure_datetime(conversation.prompt_ts))
                         setattr(existing_conversation, "response_ts", self._ensure_datetime(conversation.response_ts))
+                        setattr(existing_conversation, "encoded_audio", conversation.encoded_audio)
                     
                     # Commit the session to save the updated conversation
                     session.commit()
@@ -3832,7 +3847,8 @@ class DB:
                                                 response_ts=self._ensure_datetime(conversation.response_ts),
                                                 evaluation_score=conversation.evaluation_score,
                                                 evaluation_reason=conversation.evaluation_reason,
-                                                evaluation_ts=self._ensure_datetime(conversation.evaluation_ts)
+                                                encoded_audio=conversation.encoded_audio,
+                                                evaluation_ts=self._ensure_datetime(conversation.evaluation_ts),
                                             )
 
 
@@ -4038,3 +4054,4 @@ class DB:
                 .where(TestPlans.plan_name == plan_name)
             )
             return session.execute(sql).scalars().all()    
+

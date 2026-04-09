@@ -1,18 +1,30 @@
-FROM python:3.12-slim
+FROM python:3.11-slim
+# FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu22.04
 
-RUN mkdir -p /usr/src/app/lib/utils
+# ENV DEBIAN_FRONTEND=noninteractive
 
-COPY requirements.txt /usr/src/app/
+# RUN apt-get update && apt-get install -y \
+#     python3.11 \
+#     python3.11-dev \
+#     python3-pip \
+#     curl \
+#     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir -r /usr/src/app/requirements.txt
+# RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 
-# logger.py is hard-link to the logger.py in the utils directory
-COPY logger.py /usr/src/app/lib/utils/
-COPY main.py /usr/src/app/
-COPY translator.py /usr/src/app/
-COPY generator.py /usr/src/app/
+RUN apt-get update && apt-get install -y build-essential && rm -rf /var/lib/apt/lists/*
 
-EXPOSE 8000
+RUN mkdir -p /app
+RUN mkdir -p /models
+WORKDIR /app
 
-CMD ["python3", "/usr/src/app/main.py"]
+COPY requirements.txt /app
+
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+COPY . /app
+
+EXPOSE 16000
+
+CMD ["python3", "/app/main.py"]
 

@@ -15,16 +15,16 @@ import re
 from langdetect import detect
 import regex as reg
 
-from .voice_layer.tts_engines import SarvamTTS, Svara_TTS
-from .voice_layer.asr_engines import IndicConformerASR, WhisperASR  
+from voice_layer.tts_engines import SarvamTTS, Svara_TTS
+from voice_layer.asr_engines import IndicConformerASR, WhisperASR  
 # Adjust the path to include the "lib" directory
-sys.path.append(os.path.dirname(__file__) + "/../../")
+# sys.path.append(os.path.dirname(__file__) + "/../../")
 
 from dotenv import load_dotenv
 load_dotenv()
 
-from lib.utils.logger import get_logger
-# from logger import get_logger
+from logger import get_logger
+# from lib.utils.logger import get_logger
 
 class Request(BaseModel):
     text : str
@@ -169,13 +169,13 @@ class SarvamAIGenerator:
     
 class VoiceLayer:
                             
-    def __init__(self, tts_model : str = "svara", loglevel = logging.DEBUG):
+    def __init__(self, tts_model : str = "svara", loglevel = logging.DEBUG, use_vllm : bool = None):
         self.tts_model = tts_model
         match tts_model:
             case "sarvam":
                 self.tts = SarvamTTS(os.getenv("SARVAM_TTS_API_KEY"))
             case "svara":
-                self.tts = Svara_TTS(use_vllm=False)
+                self.tts = Svara_TTS(use_vllm=use_vllm if use_vllm is not None else False)
             case _:
                 raise ValueError("Specified TTS engine not available.")
         self.logger = get_logger(__name__, loglevel=loglevel)
