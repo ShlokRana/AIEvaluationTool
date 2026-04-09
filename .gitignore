@@ -65,3 +65,4 @@ Documentations
 reports/
 .dockerignore
 audio_cache/
+agent_response_cache/
