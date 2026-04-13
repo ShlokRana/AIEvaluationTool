@@ -179,16 +179,28 @@ python report.py --config config.json --run-name <run_name>
 
 ## Stop / Reset
 
-Stop containers:
+### Stop containers (keep data)
 
 ```bash
 docker compose down
 ```
 
-Stop and remove DB volume (full reset):
+This stops and removes all containers while preserving the MariaDB volume.
+
+### Stop and remove everything (full reset)
 
 ```bash
 docker compose down -v
+```
+
+The `-v` flag removes all named volumes, including the MariaDB database. Use this for a complete cleanup.
+
+### Clean up unused Docker resources
+
+After stopping services, optionally clean up dangling images and volumes:
+
+```bash
+docker system prune -a --volumes
 ```
 
 ## Optional: Run TDMS

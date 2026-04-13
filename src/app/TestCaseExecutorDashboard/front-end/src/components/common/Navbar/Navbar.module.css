@@ -1,177 +1,105 @@
-/* Navbar Container */
 .navbar {
-  background-color: #e6f2ff; /* Light blue background */
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background-color: #ffffff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: 1050;
-  width: 100%;
-  padding: 0;
-  margin: 0;
+  height: 70px;
+  display: flex;
+  align-items: center;
 }
 
 .navContainer {
   width: 100%;
-  margin: 0;
-  padding: 2rem;
+  max-width: 1775px; /* Limits width on ultra-wide screens */
+  margin: 0 auto;
+  padding: 0 2rem;
   display: flex;
+  justify-content: space-between; /* Pushes Title to left, Logos to right */
   align-items: center;
-  height: 70px;
 }
 
-/* Logo Styles */
-.logo {
-  display: flex;
-  align-items: center;
-  text-decoration: none;
-  font-weight: bold;
-  font-size: 1.5rem;
-  color: #2c5282;
-}
-
-.logoImage {
-  height: 40px;
-  width: auto;
-}
-
-/* Navigation Items */
-.navItems {
-  display: flex;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  height: 100%;
-}
-
-.navItem {
-  position: relative;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  padding: 0 15px;
-  transition: background-color 0.3s ease;
-}
-
-.navItem:hover {
-  background-color: #cce0ff;
-}
-
-.navLink {
-  color: #2c5282;
-  text-decoration: none;
-  font-weight: 600;
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  display: flex;
-  align-items: center;
-  height: 100%;
-  transition: color 0.2s ease;
-}
-
-.navLink:hover {
+.navTitle {
+  font-size: 2rem;
+  font-weight: 700;
   color: #1a365d;
+  margin: 0;
+  letter-spacing: -0.5px;
 }
 
-/* Active State */
-.navItem.active {
-  background-color: #4d94ff;
+.logoGroup {
+  display: flex;
+  align-items: center;
+  gap: 15px; /* Spacing between logos and lines */
 }
 
-.navItem.active .navLink {
-  color: white;
+.userSection {
+  display: flex;
+  align-items: center;
+  gap: 15px;
 }
 
-/* Dropdown Styles */
-.dropdownIcon {
-  margin-left: 5px;
-  font-size: 0.6rem;
-  transition: transform 0.2s ease;
+.userName {
+  font-size: 0.9rem;
+  color: #1a365d;
+  font-weight: 500;
 }
 
-.navItem:hover .dropdownIcon {
-  transform: rotate(180deg);
-}
-
-.dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  background-color: white;
-  min-width: 200px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  border-radius: 0 0 4px 4px;
-  z-index: 1001;
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(-10px);
+.logoutButton {
+  background: none;
+  border: 1px solid #e2e8f0;
+  color: #1a365d;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.navItem:hover .dropdown {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
-}
-
-.dropdownItem {
-  display: block;
-  padding: 10px 15px;
-  color: #2d3748;
-  text-decoration: none;
-  font-size: 0.9rem;
-  transition: background-color 0.2s ease;
-}
-
-.dropdownItem:hover {
+.logoutButton:hover {
   background-color: #f7fafc;
-  color: #2b6cb0;
+  border-color: #cbd5e0;
 }
 
-/* Responsive Design */
-@media (max-width: 1024px) {
-  .navContainer {
-    padding: 0 10px;
-  }
-  
-  .navItem {
-    padding: 0 10px;
-  }
-  
-  .navLink {
-    font-size: 0.8rem;
-  }
+.logoWrapper {
+  display: flex;
+  align-items: center;
+  transition: opacity 0.2s ease;
 }
 
+.logoWrapper:hover {
+  opacity: 0.8;
+}
+
+.logoImage {
+  height: 35px;
+  width: auto;
+  object-fit: contain;
+}
+
+.divider {
+  width: 1px;
+  height: 24px;
+  background-color: #e2e8f0; /* Subtle light gray instead of harsh dark */
+}
+
+/* Tablet & Mobile Optimization */
 @media (max-width: 768px) {
   .navContainer {
-    flex-direction: column;
-    height: auto;
-    padding: 15px 10px;
+    padding: 0 1rem;
   }
   
-  .navItems {
-    flex-direction: column;
-    width: 100%;
-    margin-top: 15px;
+  .navTitle {
+    font-size: 1rem;
   }
-  
-  .navItem {
-    padding: 10px 0;
-    height: auto;
-    border-bottom: 1px solid #cce0ff;
+
+  .logoImage {
+    height: 25px;
   }
-  
-  .dropdown {
-    position: static;
-    box-shadow: none;
-    display: none;
-    padding-left: 15px;
-  }
-  
-  .navItem:hover .dropdown {
-    display: block;
+
+  .divider {
+    height: 18px;
   }
 }

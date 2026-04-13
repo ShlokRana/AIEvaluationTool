@@ -2,9 +2,10 @@ import React, { useEffect, useState } from "react";
 import "./Filters.css";
 import { AllFilters } from "../../types/Filters";
 import { useNavigate } from "react-router-dom";
-import FilterSelect from "../common/Filters/Filters"
+import FilterSelect from "../common/Filters/Filters";
 import AppButton from "../common/Button/AppButton";
-
+import { API_BASE_URL, API_ENDPOINTS } from "../../config/api";
+import { redirectToLogin } from "../../utils/auth";
 interface FiltersProps {
   onFilterChange?: (filterType: string, value: string) => void;
 }
@@ -20,11 +21,35 @@ const Filters: React.FC<FiltersProps> = ({ onFilterChange }) => {
     statuses: [],
   });
   const [isLoading, setIsLoading] = useState(true);
+  const getAuthHeaders = (): HeadersInit => {
+    const token = localStorage.getItem("access_token");
+    return token
+      ? {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        }
+      : {
+          "Content-Type": "application/json",
+        };
+  };
+
 
   useEffect(() => {
     setIsLoading(true);
-    fetch("http://localhost:7000/get_all_filters")
-      .then((res) => res.json())
+    fetch(`${API_BASE_URL}${API_ENDPOINTS.GET_ALL_FILTERS}`, {
+      headers: getAuthHeaders(),
+      credentials: "include",
+    })
+      .then((res) => {
+        if (res.status === 401) {
+          redirectToLogin();
+          throw new Error("Unauthorized");
+        }
+        if (!res.ok) {
+          throw new Error(`Failed to fetch filters (${res.status})`);
+        }
+        return res.json();
+      })
       .then((data: AllFilters) => {
         setFilters(data);
         setIsLoading(false);
@@ -35,61 +60,43 @@ const Filters: React.FC<FiltersProps> = ({ onFilterChange }) => {
       });
   }, []);
 
+  const filterConfigs = [
+    { type: "domain", label: "Domain", options: filters.domains },
+    { type: "target", label: "Target", options: filters.targets },
+    { type: "status", label: "Status", options: filters.statuses },
+  ];
+
   return (
-    <div className="header">
-      <div className="filters">
-        <FilterSelect
-          filterType="domain"
-          placeholder="Domain"
-          options={filters.domains}
-          isLoading={isLoading}
-          onChange={onFilterChange}
-        />
-        
+    <div className={`filtersContainer ${isLoading ? 'isFetching' : ''}`}>
+      {/* <div className="filtersList">
+        {filterConfigs.map((config) => (
+          <div key={config.type} className="filterWrapper withIcon"> */}
+            {/* This SVG now sits inside the wrapper */}
+            {/* <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              width="16" 
+              height="16" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2.5" 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              className="innerFilterIcon"
+            >
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+            </svg>
+            <FilterSelect
+              filterType={config.type}
+              placeholder={config.label}
+              options={config.options}
+              isLoading={isLoading}
+              onChange={onFilterChange}
+            />
+          </div>
+        ))}
 
-        {/* <FilterSelect
-          placeholder="Language"
-          filterType="language"
-          options={filters.languages}
-          isLoading={isLoading}
-          onChange={onFilterChange}
-        /> */}
-
-        <FilterSelect
-          placeholder="Target"
-          filterType="target"
-          options={filters.targets}
-          isLoading={isLoading}
-          onChange={onFilterChange}
-        />
-        <FilterSelect
-          placeholder="Status"
-          filterType="status"
-          options={filters.statuses}
-          isLoading={isLoading}
-          onChange={onFilterChange}
-        />
-        
-      </div>  
-       <div className="header-buttons">
-        <AppButton
-          label="New Test Run"
-          variant="primary"
-          icon="bi-plus-lg" // using bootstrap icon class if needed
-          size="md"
-          onClick={() => navigate("/create-test-run")}
-        />
-        <AppButton
-          label="Continue"
-          variant="warning"
-          icon="bi-play-fill" // using bootstrap icon class if needed
-          size="md"
-          
-        />
-
-        {/* New Test Run Button */}
-        
-      </div>
+      </div> */}
     </div>
     
     

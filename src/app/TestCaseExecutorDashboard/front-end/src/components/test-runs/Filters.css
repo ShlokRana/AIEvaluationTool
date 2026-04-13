@@ -1,13 +1,102 @@
-.filters {
+.filtersContainer {
+  padding: 12px 24px;
+  background: transparent;
+  border-bottom: 1px solid #f1f5f9;
   display: flex;
-  flex-wrap: nowrap;
-  gap: 0.8rem;
   align-items: center;
+  justify-content: space-between;
+}
+
+.filtersList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px; /* Increased gap for better breathing room */
+  align-items: center;
+}
+
+Icon & Label Styling
+.filterIconWrapper.withIcon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 8px;
+  color: #64748b; /* Subtle slate color */
+}
+
+/* Container for the filter + icon */
+.filterWrapper.withIcon {
+  width: 180px;
+  position: relative; /* Essential for absolute positioning of the icon */
+  display: flex;
+  align-items: center;
+}
+
+/* Positioning the icon inside the box */
+.innerFilterIcon {
+  position: absolute;
+  left: 12px; /* Distance from the left edge */
+  z-index: 10;
+  color: #64748b; /* Professional slate color */
+  pointer-events: none; /* Clicking the icon still opens the dropdown */
+}
+
+/* Modify the Select input inside the wrapper to make room for the icon */
+.filterWrapper.withIcon select {
+  padding-left: 36px !important; /* Pushes the text to the right so it doesn't hit the icon */
+  padding: 8px 12px 8px 36px !important;
+}
+
+/* Optional: change icon color when focused */
+.filterWrapper.withIcon:focus-within .innerFilterIcon {
+  color: #3b82f6; /* Icon turns blue when user clicks the box */
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   flex: 1;
-  overflow-x: auto;
-  padding: 0.5rem 0;
-  scrollbar-width: none; /* Hide scrollbar for Firefox */
-  -ms-overflow-style: none; /* Hide scrollbar for IE/Edge */
+  /* margin-left: 32px; */
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.continue-btn {
+  width: 140px;
+  border: 1.5px solid #e2e8f0 !important;
+  background: #ffffff !important;
+  color: #475569 !important;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.continue-btn:hover {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  color: #334155 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.new-test-run-btn {
+  width: 149px;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+  border: none !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+  transition: all 0.2s ease;
+}
+
+.new-test-run-btn:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
+  transform: translateY(-1px);
 }
 
 .filters::-webkit-scrollbar {
@@ -48,21 +137,14 @@
   }
 }
 
-/* Small phones */
-@media screen and (max-width: 480px) {
-  .filters {
-    gap: 0.4rem;
-    justify-content: flex-start;
+/* Mobile Tweak */
+@media (max-width: 640px) {
+  .filterIconWrapper {
+    width: 100%;
+    margin-bottom: 4px;
   }
-
-  .filters .filter {
-    flex: 1 1 calc(50% - 0.4rem); /* 2 filters per row */
-    min-width: 90px;
-    max-width: 120px;
-  }
-
-  .filters select {
-    font-size: 0.85rem;
-    padding: 0.5rem 0.6rem;
+  
+  .filterWrapper {
+    flex: 1 1 calc(50% - 8px);
   }
 }

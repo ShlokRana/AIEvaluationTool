@@ -1,0 +1,124 @@
+.sidebar-shell {
+  width: 224px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #246cf3;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.sidebar-brand-wrap {
+  padding: 24px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+}
+
+.sidebar-brand-pill {
+  width: 160px;
+  height: 75px;
+  border-radius: 999px;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-brand-image {
+  width: 160px;
+  height: 60px;
+  object-fit: contain;
+  padding: 12px 20px;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 0 12px;
+  margin-top: 20px;
+}
+
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.sidebar-nav-button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.sidebar-nav-item-link {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.sidebar-nav-item-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-nav-item-active {
+  background: #ffffff;
+  color: #5151c2;
+  font-weight: 600;
+}
+
+.sidebar-nav-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.sidebar-footer {
+  padding: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-user-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+}
+
+.sidebar-user-icon-wrap {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-user-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.sidebar-user-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar-user-name {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.sidebar-user-role {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.2;
+  color: rgba(255, 255, 255, 0.6);
+}

@@ -1,10 +1,20 @@
 // API Configuration
 export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8100";
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:7250";
+
+export const WS_BASE_URL = API_BASE_URL.replace(/^http/i, "ws");
+
+export const AUTH_SERVICE_URL =
+  import.meta.env.VITE_AUTH_SERVICE_URL || "http://localhost:7500";
+
+// Auth endpoints
+export const AUTH_PAGE_URL = `${AUTH_SERVICE_URL}/web/login`;
 
 // API endpoints
 export const API_ENDPOINTS = {
-  LOGIN: `${API_BASE_URL}/login`,
+  LOGIN: `${AUTH_SERVICE_URL}/login`,
+  LOGOUT: `${AUTH_SERVICE_URL}/logout`,
+  REFRESH: `${AUTH_SERVICE_URL}/refresh`,
   DASHBOARD: `${API_BASE_URL}/api/dashboard`,
   TEST_CASES: `${API_BASE_URL}/api/testcases`,
   TEST_CASE_BY_ID: (testcase_id: number) =>
@@ -185,6 +195,8 @@ export const API_ENDPOINTS = {
   TESTPLAN_DELETE_V2: (plan_id: number) =>
     `${API_BASE_URL}/api/v2/testplans/delete/${plan_id}`,
   TESTPLAN_METRICS_ALL: `${API_BASE_URL}/api/v2/testplans/metrics/all`,
-};
 
+  IMPORTER_RUN: `${API_BASE_URL}/api/importer/run`,
+  IMPORTER_STATUS_WS: `${WS_BASE_URL}/api/importer/ws`,
+};
 

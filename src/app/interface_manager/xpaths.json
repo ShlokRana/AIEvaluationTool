@@ -6,6 +6,38 @@
         "contact_selection_xpath": "//span[@title='Vaidya AI']",
         "profile_element": "//button[@aria-label='You']",
         "logout_button_element": "//button[.//div[text()='Log out']]",
+        "prompt_input_box_element": "//div[@aria-placeholder='Type a message' and @contenteditable='true']",
+        "agent_response_element": ".//div[contains(@class,'copyable-text')]//span[@data-testid='selectable-text']",
+        "message_in_element": "//div[contains(concat(' ', normalize-space(@class), ' '), ' message-in ')]",
+        "message_out_element": "//div[contains(concat(' ', normalize-space(@class), ' '), ' message-out ')]",
+        "audio_record_button_element": "//span[contains(@data-icon,'mic')]",
+        "send_button_element": "//button[@aria-label='Send']",
+        "audio_message_element": ".//*[@aria-label='Voice message']",
+        "download_menu_element": ".//span[contains(@data-icon,'chevron')]",
+        "download_button_element": "//div[@role='menuitem' and @aria-label='Download']",
+        "attachment_button_element": "//span[contains(@data-icon='plus')]",
+        "attachment_input_element": ".//span[text()='Audio']",
+        "scan_qr_code_element": "//canvas[@aria-label='Scan this QR code to link a device!']"
+      }
+    },
+    "cpgrams": 
+    {
+      "LoginPage": {
+          "email_input_element": "//input[@id='email']",
+          "password_input_element": "//input[@id='password']",
+          "login_button_element": "//button[normalize-space(.)='Sign In']"
+      },
+      "LogoutPage":{
+        "profile_pic_element": "//div[.//img[@alt='User']",
+        "send_element": "//button[@title='Send']",
+        "profile_element": "//div[.//div[@class='font-semibold' and text()='Sharwan kumar']]",
+        "logout_button_element": "//button[.//span[text()='Logout']]"
+      },
+      "ChatPage": {
+        "contact_search_element": "//input[@role='textbox' and contains(@aria-label,'Search')]",
+        "contact_selection_xpath": "//span[@title='Vaidya AI']",
+        "profile_element": "//button[@aria-label='You']",
+        "logout_button_element": "//button[.//div[text()='Log out']]",
         "prompt_input_box_element": "//div[@role='textbox' and @contenteditable='true']",
         "agent_response_element": ".//span[@data-testid='selectable-text']",
         "message_in_element": "//div[contains(concat(' ', normalize-space(@class), ' '), ' message-in ')]",

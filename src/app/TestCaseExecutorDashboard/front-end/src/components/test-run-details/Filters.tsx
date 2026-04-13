@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import "./Filters.css";
 import { AllFilters } from "../../types/Filters";
 import FilterSelect from "../common/Filters/Filters"
-
+import { API_BASE_URL, API_ENDPOINTS } from "../../config/api";
 type FilterKey = "metric" | "status";
 
 interface FiltersProps {
@@ -22,7 +22,7 @@ const Filters: React.FC<FiltersProps> = ({ onFilterChange }) => {
 
   useEffect(() => {
     setIsLoading(true);
-    fetch("http://localhost:8000/get_all_filters")
+    fetch(`${API_BASE_URL}${API_ENDPOINTS.GET_ALL_FILTERS}`)
       .then((res) => res.json())
       .then((data: AllFilters) => {
         setFilters(data);

@@ -1,5 +1,7 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import styles from "./runtimeline.module.css";
+import { API_ENDPOINTS } from "../../config/api";
+import { redirectToLogin } from "../../utils/auth";
 
 /* ===== TYPES ===== */
 
@@ -14,106 +16,155 @@ interface TimelineEvent {
 interface Props {
   runName: string;
   hoveredMetric: string | null;
-  hoveredPlan?: string | null;        // Make optional with ?
-  onHoverPlan?: (plan: string | null) => void;  // Make optional with ?
-  onHoverMetric: (metric: string | null) => void; // ✅ ADD
+  hoveredPlan?: string | null;
+  onHoverPlan?: (plan: string | null) => void;
+  onHoverMetric: (metric: string | null) => void;
+  onDurationCalculated?: (duration: string) => void;
 }
 
 /* ===== COMPONENT ===== */
 
-const RunTimeline: React.FC<Props> = ({ runName, hoveredMetric, onHoverMetric }) => {
+const RunTimeline: React.FC<Props> = ({ runName, hoveredMetric, onHoverMetric, onDurationCalculated }) => {
   const [events, setEvents] = useState<TimelineEvent[]>([]);
 
+  const getAuthHeaders = (): HeadersInit => {
+    const token = localStorage.getItem("access_token");
+    return token
+      ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+      : { "Content-Type": "application/json" };
+  };
+
   useEffect(() => {
-    fetch(`http://localhost:7000/test-runs/${runName}/timeline`)
-      .then(res => res.json())
+    fetch(API_ENDPOINTS.GET_TIMELINE(runName), {
+      headers: getAuthHeaders(),
+      credentials: "include",
+    })
+      .then((res) => {
+        if (res.status === 401) {
+          redirectToLogin();
+          throw new Error("Unauthorized");
+        }
+        return res.json();
+      })
       .then(setEvents);
   }, [runName]);
 
-  if (events.length === 0) return null;
+  /* ================= CALCULATE TOTAL EXECUTION TIME ================= */
 
-  // Always show all plans
-  const filteredEvents = events;
+  useEffect(() => {
+    if (!events.length) return;
 
-  // Group by plan and sort events by prompt time
-  const eventsByPlan = filteredEvents.reduce<Record<string, TimelineEvent[]>>(
-    (acc, e) => {
+    const eventsByPlan = events.reduce<Record<string, TimelineEvent[]>>((acc, e) => {
       acc[e.plan_name] ||= [];
       acc[e.plan_name].push(e);
       return acc;
-    },
-    {}
+    }, {});
+
+    let totalMs = 0;
+
+    Object.values(eventsByPlan).forEach(planEvents => {
+      const start = Math.min(...planEvents.map(e => new Date(e.prompt_ts!).getTime()));
+      const end = Math.max(...planEvents.map(e => new Date(e.response_ts!).getTime()));
+      totalMs += (end - start);
+    });
+
+    const formatted = formatDuration(totalMs);
+    onDurationCalculated?.(formatted);
+  }, [events, onDurationCalculated]);
+
+  if (events.length === 0) return null;
+
+  /* ================= GROUP INTO SEQUENTIAL PLAN BLOCKS ================= */
+  // Sort ALL events by prompt time first
+  const sortedEvents = [...events].sort(
+    (a, b) => new Date(a.prompt_ts!).getTime() - new Date(b.prompt_ts!).getTime()
   );
 
-  // Sort events within each plan by prompt time
-  Object.values(eventsByPlan).forEach(planEvents =>
-    planEvents.sort(
-      (a, b) =>
-        new Date(a.prompt_ts!).getTime() -
-        new Date(b.prompt_ts!).getTime()
-    )
-  );
+  // Split into blocks: same plan name with a significant time gap = new block
+  const GAP_THRESHOLD_MS = 5000; // 5 seconds
 
-  const planNames = Object.keys(eventsByPlan);
+  const planBlocks: { key: string; name: string; events: TimelineEvent[] }[] = [];
+
+  for (const event of sortedEvents) {
+    const last = planBlocks[planBlocks.length - 1];
+    const eventTime = new Date(event.prompt_ts!).getTime();
+
+    if (last && last.name === event.plan_name) {
+      const lastResponseTime = Math.max(
+        ...last.events.map(e => new Date(e.response_ts!).getTime())
+      );
+      if (eventTime - lastResponseTime < GAP_THRESHOLD_MS) {
+        // Continuous run — same block
+        last.events.push(event);
+        continue;
+      }
+    }
+
+    // New block (different name, or same name after a gap)
+    const count = planBlocks.filter(b => b.name === event.plan_name).length;
+    planBlocks.push({
+      key: `${event.plan_name}__${count}`,
+      name: event.plan_name,
+      events: [event],
+    });
+  }
+
+  const eventsByPlan: Record<string, TimelineEvent[]> = Object.fromEntries(
+    planBlocks.map(b => [b.key, b.events])
+  );
+  const planDisplayNames: Record<string, string> = Object.fromEntries(
+    planBlocks.map(b => [b.key, b.name])
+  );
+  const planNames = planBlocks.map(b => b.key);
+
   if (planNames.length === 0) return null;
 
-  // Calculate time gaps between plans
+  /* ================= CALCULATE GAPS BETWEEN BLOCKS ================= */
   const planGaps = planNames.slice(0, -1).map((plan, i) => {
     const currentPlan = eventsByPlan[plan];
     const nextPlan = eventsByPlan[planNames[i + 1]];
-    
+
     if (!currentPlan.length || !nextPlan.length) return 0;
-    
+
     const lastEventOfCurrent = currentPlan.reduce((latest, event) => {
       const time = new Date(event.response_ts!).getTime();
       return time > latest ? time : latest;
     }, 0);
-    
+
     const firstEventOfNext = nextPlan.reduce((earliest, event) => {
       const time = new Date(event.prompt_ts!).getTime();
       return time < earliest ? time : earliest;
     }, Infinity);
-    
+
     return firstEventOfNext - lastEventOfCurrent;
   });
 
   return (
     <div className={styles.timelineCard}>
-      <div className={styles.timelineHeader}>
-        <h3>Execution Timeline</h3>
-      </div>
-      {/* HEADER */}
+      <div className={styles.timelineHeader} />
 
-      {/* HORIZONTAL ROW (SCROLLS, STICKY SAFE) */}
       <div className={styles.planRow}>
-        {planNames.map((plan, index) => {
-          const planEvents = eventsByPlan[plan];
+        {planNames.map((planKey, index) => {
+          const planEvents = eventsByPlan[planKey];
 
-          const start = Math.min(
-            ...planEvents.map(e => new Date(e.prompt_ts!).getTime())
-          );
-          const end = Math.max(
-            ...planEvents.map(e => new Date(e.response_ts!).getTime())
-          );
+          const start = Math.min(...planEvents.map(e => new Date(e.prompt_ts!).getTime()));
+          const end = Math.max(...planEvents.map(e => new Date(e.response_ts!).getTime()));
           const total = end - start || 1;
 
+          if (total <= 0) return null;
+
           return (
-            <React.Fragment key={plan}>
-              {/* PLAN BLOCK */}
+            <React.Fragment key={planKey}>
               <div className={styles.planBlock}>
                 <div className={styles.planHeader}>
-                  {plan}
-                  <div className={styles.duration}>
-                    {formatDuration(total)}
-                  </div>
+                  {planDisplayNames[planKey]}
+                  <div className={styles.duration}>{formatDuration(total)}</div>
                 </div>
 
-                {/* TIMELINE */}
                 <div className={styles.timeline}>
                   {planEvents.map(e => {
                     const prompt = new Date(e.prompt_ts!).getTime();
                     const response = new Date(e.response_ts!).getTime();
-
                     const left = ((prompt - start) / total) * 100;
                     const width = ((response - prompt) / total) * 100;
 
@@ -131,14 +182,13 @@ const RunTimeline: React.FC<Props> = ({ runName, hoveredMetric, onHoverMetric })
                               ? 1
                               : 0.25,
                         }}
-                        onMouseEnter={() => onHoverMetric(e.metric_name)} // update parent state
-                        onMouseLeave={() => onHoverMetric(null)} 
-                        />
+                        onMouseEnter={() => onHoverMetric(e.metric_name)}
+                        onMouseLeave={() => onHoverMetric(null)}
+                      />
                     );
                   })}
                 </div>
 
-                {/* SCALE */}
                 <div className={styles.scale}>
                   {[0, 0.25, 0.5, 0.75, 1].map((p, i) => (
                     <div
@@ -146,17 +196,16 @@ const RunTimeline: React.FC<Props> = ({ runName, hoveredMetric, onHoverMetric })
                       className={styles.scaleItem}
                       style={{ left: `${p * 100}%` }}
                     >
-                      {Math.round((total * p) / 1000)}s
+                      {p === 0 ? "0" : formatDuration(total * p)}
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* DOTTED GAP - Only show on hover */}
               {index < planNames.length - 1 && (
-                <div 
+                <div
                   className={styles.planConnector}
-                  data-gap={`${(planGaps[index] / 1000).toFixed(2)}s gap`}
+                  data-gap={`${formatDuration(planGaps[index])} gap`}
                 />
               )}
             </React.Fragment>
@@ -167,31 +216,15 @@ const RunTimeline: React.FC<Props> = ({ runName, hoveredMetric, onHoverMetric })
   );
 };
 
-// Helper function to format duration in a human-readable way
 function formatDuration(ms: number): string {
-  const seconds = Math.floor(ms / 1000);
-  
-  if (seconds < 1) return '<1s';
-  if (seconds < 60) return `${seconds}s`;
-  
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  
-  if (minutes < 60) {
-    return remainingSeconds > 0 
-      ? `${minutes}m ${remainingSeconds}s`
-      : `${minutes}m`;
-  }
-  
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  
-  return remainingMinutes > 0
-    ? `${hours}h ${remainingMinutes}m`
-    : `${hours}h`;
+  if (!ms || ms < 0) return "-";
+  const totalSeconds = Math.floor(ms / 1000);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
 }
-
-// Alias for backward compatibility
-const formatTimeGap = formatDuration;
 
 export default RunTimeline;

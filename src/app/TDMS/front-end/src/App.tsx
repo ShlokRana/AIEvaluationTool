@@ -2,9 +2,10 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import { isAuthenticated, parseUrlTokens } from "./utils/auth";
 import TestCases from "./pages/TestCases";
 import Responses from "./pages/Responses";
 import Users from "./pages/Users";
@@ -28,22 +29,22 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        {parseUrlTokens()}
         <Routes>
-          <Route path="/" element={<Login />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/test-cases" element={<TestCases />} />
-          <Route path="/targets" element={<Targets />} />
-          <Route path="/responses" element={<Responses />} />
-          <Route path="/prompts" element={<Prompts/>}/>
-          <Route path="/domains" element={<DomainList/>} />
-          <Route path="/strategies" element={<StrategyList/>} />
-          <Route path="/llm-prompts" element={<LlmPrompts/>} />
-          <Route path="/languages" element={<LanguageList />} />
-          <Route path="/strategies" element={<StrategyList />} />
-          <Route path="/users" element={<Users />} />
-          <Route path="/test-plans" element={<TestPlans />} />
-          <Route path="/metrics" element={<Metrics />} />
-          <Route path="/user-history/:username" element={<UserHistory />} />
+          <Route path="/" element={isAuthenticated() ? <Navigate to="/dashboard" replace /> : <Login />} />
+          <Route path="/dashboard" element={isAuthenticated() ? <Dashboard /> : <Navigate to="/" replace />} />
+          <Route path="/test-cases" element={isAuthenticated() ? <TestCases /> : <Navigate to="/" replace />} />
+          <Route path="/targets" element={isAuthenticated() ? <Targets /> : <Navigate to="/" replace />} />
+          <Route path="/responses" element={isAuthenticated() ? <Responses /> : <Navigate to="/" replace />} />
+          <Route path="/prompts" element={isAuthenticated() ? <Prompts/> : <Navigate to="/" replace />} />
+          <Route path="/domains" element={isAuthenticated() ? <DomainList/> : <Navigate to="/" replace />} />
+          <Route path="/strategies" element={isAuthenticated() ? <StrategyList/> : <Navigate to="/" replace />} />
+          <Route path="/llm-prompts" element={isAuthenticated() ? <LlmPrompts/> : <Navigate to="/" replace />} />
+          <Route path="/languages" element={isAuthenticated() ? <LanguageList /> : <Navigate to="/" replace />} />
+          <Route path="/users" element={isAuthenticated() ? <Users /> : <Navigate to="/" replace />} />
+          <Route path="/test-plans" element={isAuthenticated() ? <TestPlans /> : <Navigate to="/" replace />} />
+          <Route path="/metrics" element={isAuthenticated() ? <Metrics /> : <Navigate to="/" replace />} />
+          <Route path="/user-history/:username" element={isAuthenticated() ? <UserHistory /> : <Navigate to="/" replace />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

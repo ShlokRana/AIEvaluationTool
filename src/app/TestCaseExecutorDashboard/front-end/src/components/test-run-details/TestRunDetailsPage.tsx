@@ -1,16 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import styles from "./TestRunDetails.module.css";
 import Modal from "./Modal";
 import RunTimeline from "./RunTimeline";
 import DetailCard from "../common/DetailCard/DetailCard";
-import Filters from "./Filters";
-import RunDetailsFilters from "../common/Filters/FiltersRunDet";
-
-
-/* ======================
-   TYPES
-====================== */
+import { useNavigate } from "react-router-dom";
+import { API_BASE_URL, API_ENDPOINTS } from "../../config/api";
+import { redirectToLogin } from "../../utils/auth";
 
 interface RunSummary {
   run_id: number;
@@ -33,10 +29,6 @@ interface RunDetail {
   score?: number | null;
 }
 
-interface RunDetailsResponse {
-  summary: RunSummary;
-  details: RunDetail[];
-}
 interface FilterOption {
   filter_name: string;
 }
@@ -45,9 +37,6 @@ interface AllFilters {
   metrics: FilterOption[];
   statuses: FilterOption[];
 }
-/* ======================
-   COMPONENT
-====================== */
 
 const RunDetails: React.FC = () => {
   const { runName } = useParams<{ runName: string }>();
@@ -57,32 +46,70 @@ const RunDetails: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
+  const [selectedDetailId, setSelectedDetailId] = useState<number | null>(null);
   const [hoveredMetric, setHoveredMetric] = useState<string | null>(null);
   const [hoveredPlan, setHoveredPlan] = useState<string | null>(null);
-  const [filtersData, setFiltersData] = useState<AllFilters>({
-    metrics: [],
-    statuses: [],
-  });
+  const [executionDuration, setExecutionDuration] = useState<string | null>(null);
+  const [filtersData, setFiltersData] = useState<AllFilters>({ metrics: [], statuses: [] });
+  const [openFilterColumn, setOpenFilterColumn] = useState<string | null>(null);
+  const [showScrollHint, setShowScrollHint] = useState(false);
+  const [isAtBottom, setIsAtBottom] = useState(false);
 
-  const [activeFilters, setActiveFilters] = useState<{
-    metric?: string;
-    status?: string;
-  }>({});
-  useEffect(() => {
-    console.log("🔴 hoveredMetric changed to:", hoveredMetric);
-  }, [hoveredMetric]);
+  const [cardHeight, setCardHeight] = useState<number | null>(null);
+  const summaryCardRef = useRef<HTMLDivElement | null>(null);
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const filterRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
+  const navigate = useNavigate();
+
+  const getAuthHeaders = (): HeadersInit => {
+    const token = localStorage.getItem("access_token");
+    return token
+      ? {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        }
+      : {
+          "Content-Type": "application/json",
+        };
+  };
+
+  const [activeFilters, setActiveFilters] = useState<{ metric?: string; status?: string }>({});
+
+  // Measure left card height via ResizeObserver — table matches this exactly
   useEffect(() => {
-    console.log("🔵 hoveredPlan changed to:", hoveredPlan);
-  }, [hoveredPlan]);
-  const statusMap = (status: string | null | undefined): "COMPLETED" | "RUNNING" | "FAILED" | undefined => {
+    const measure = () => {
+      if (summaryCardRef.current) {
+        setCardHeight(summaryCardRef.current.offsetHeight);
+      }
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (summaryCardRef.current) ro.observe(summaryCardRef.current);
+    return () => ro.disconnect();
+  }, [summary, executionDuration]);
+
+  const statusMap = (
+    status: string | null | undefined
+  ): "COMPLETED" | "RUNNING" | "FAILED" | undefined => {
     if (status === "COMPLETED" || status === "RUNNING" || status === "FAILED") return status;
     return undefined;
   };
-   const handleFilterChange = (
-    filterType: "metric" | "status",
-    value: string
-  ) => {
+
+  const formatScore = (score?: number | null) => {
+    if (score === null || score === undefined) return "-";
+    if (!Number.isFinite(score)) return "-";
+    return Number.isInteger(score) ? String(score) : score.toFixed(2);
+  };
+
+  const isPlanCellEvent = (target: EventTarget | null) => {
+    if (!(target instanceof Node)) return false;
+    const element =
+      target instanceof HTMLElement ? target : target.parentElement;
+    return Boolean(element?.closest("[data-plan-cell='true']"));
+  };
+
+  const handleFilterChange = (filterType: "metric" | "status", value: string) => {
     setActiveFilters((prev) => {
       if (!value) {
         const copy = { ...prev };
@@ -91,27 +118,108 @@ const RunDetails: React.FC = () => {
       }
       return { ...prev, [filterType]: value };
     });
+    setOpenFilterColumn(null);
   };
 
   useEffect(() => {
-    fetch("http://localhost:7000/get_all_filters")
-      .then((res) => res.json())
-      .then((data) => {
-        setFiltersData({
-          metrics: data.metrics,
-          statuses: data.statuses,
-        });
+    const handleClickOutside = (event: MouseEvent) => {
+      if (openFilterColumn && filterRefs.current[openFilterColumn]) {
+        const filterElement = filterRefs.current[openFilterColumn];
+        if (filterElement && !filterElement.contains(event.target as Node)) {
+          setOpenFilterColumn(null);
+        }
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [openFilterColumn]);
+
+  useEffect(() => {
+    fetch(`${API_BASE_URL}${API_ENDPOINTS.GET_ALL_FILTERS}`, {
+      headers: getAuthHeaders(),
+      credentials: "include",
+    })
+      .then((res) => {
+        if (res.status === 401) {
+          redirectToLogin();
+          throw new Error("Unauthorized");
+        }
+        return res.json();
       })
+      .then((data) => setFiltersData({ metrics: data.metrics, statuses: data.statuses }))
       .catch(console.error);
   }, []);
 
-  /* ======================
-     FETCH RUN DETAILS
-  ====================== */
+  useEffect(() => {
+    const updateScrollHint = () => {
+      const node = tableScrollRef.current;
+      if (!node) {
+        setShowScrollHint(false);
+        setIsAtBottom(false);
+        return;
+      }
+      setShowScrollHint(node.scrollHeight > node.clientHeight + 2);
+      const maxScrollTop = node.scrollHeight - node.clientHeight;
+      setIsAtBottom(node.scrollTop >= maxScrollTop - 2);
+    };
+    updateScrollHint();
+    window.addEventListener("resize", updateScrollHint);
+    return () => window.removeEventListener("resize", updateScrollHint);
+  }, [details, cardHeight]);
+
+  useEffect(() => {
+    const node = tableScrollRef.current;
+    if (!node) return;
+    const onScroll = () => {
+      const maxScrollTop = node.scrollHeight - node.clientHeight;
+      setIsAtBottom(node.scrollTop >= maxScrollTop - 2);
+    };
+    node.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => node.removeEventListener("scroll", onScroll);
+  }, [details]);
+
+  useEffect(() => {
+    const clearSelectionIfConversationModal = (event: Event) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.id !== "conversationModal") return;
+      setSelectedConversationId(null);
+      setSelectedDetailId(null);
+    };
+
+    // Use document-level listener so it still works even if Bootstrap replaces/rehydrates modal DOM.
+    document.addEventListener(
+      "hide.bs.modal",
+      clearSelectionIfConversationModal as EventListener
+    );
+    document.addEventListener(
+      "hidden.bs.modal",
+      clearSelectionIfConversationModal as EventListener
+    );
+    return () => {
+      document.removeEventListener(
+        "hide.bs.modal",
+        clearSelectionIfConversationModal as EventListener
+      );
+      document.removeEventListener(
+        "hidden.bs.modal",
+        clearSelectionIfConversationModal as EventListener
+      );
+    };
+  }, []);
+
+  const handleScrollChevronClick = () => {
+    const node = tableScrollRef.current;
+    if (!node) return;
+    if (isAtBottom) {
+      node.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
+      node.scrollTo({ top: node.scrollHeight, behavior: "smooth" });
+    }
+  };
 
   useEffect(() => {
     if (!runName) return;
-
     setLoading(true);
     setError(null);
 
@@ -119,12 +227,15 @@ const RunDetails: React.FC = () => {
     if (activeFilters.metric) params.append("metric", activeFilters.metric);
     if (activeFilters.status) params.append("status", activeFilters.status);
 
-    fetch(
-      `http://localhost:7000/test-runs/${encodeURIComponent(
-        runName
-      )}?${params.toString()}`
-    )
+    fetch(API_ENDPOINTS.GET_TEST_RUN_DETAILS(runName, params.toString()), {
+      headers: getAuthHeaders(),
+      credentials: "include",
+    })
       .then((res) => {
+        if (res.status === 401) {
+          redirectToLogin();
+          throw new Error("Unauthorized");
+        }
         if (!res.ok) throw new Error(`API ${res.status}`);
         return res.json();
       })
@@ -135,201 +246,302 @@ const RunDetails: React.FC = () => {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [runName, activeFilters]);
-  /* ======================
-     STATES
-  ====================== */
 
   if (loading) return <p className={styles.loading}>Loading test run...</p>;
   if (error) return <p className={styles.error}>{error}</p>;
   if (!summary) return <p>No test run found</p>;
 
-  const durationSeconds =
-    summary.end_ts
-      ? Math.round(
-          (new Date(summary.end_ts).getTime() -
-            new Date(summary.start_ts).getTime()) / 1000
-        )
-      : null;
-
-  /* ======================
-     UI
-  ====================== */
-
-  // Group details by plan name
   const groupedByPlan = details.reduce((acc, detail) => {
-    if (!acc[detail.plan_name]) {
-      acc[detail.plan_name] = [];
-    }
+    if (!acc[detail.plan_name]) acc[detail.plan_name] = [];
     acc[detail.plan_name].push(detail);
     return acc;
   }, {} as Record<string, RunDetail[]>);
-  
-  const planNames = Object.keys(groupedByPlan);
+  const hasExistingScores = details.some((detail) => typeof detail.score === "number");
+
+  const tableContainerHeight = cardHeight ?? undefined;
 
   return (
     <div className={styles.container}>
-      {/* Header Section */}
-      <div className={styles.summaryCard}>
-        <div className={styles.headerRow}>
-          <h1 className={styles.title}>
-            {summary.run_name}
-          </h1>
-          {/* {planNames.length > 0 && (
-            <div className={styles.planBadge}>
-              <i className="bi-journal-text"></i>
-              {planNames.length === 1 ? planNames[0] : `${planNames.length} Plans`}
-            </div>
-          )} */}
-        </div>
-
-        <div className={styles.detailsGrid}>
-          <DetailCard
-            label="Target"
-            value={summary.target ?? "-"}
-            icon="bi-bullseye"
-          />
-          <DetailCard
-            label="Domain"
-            value={summary.domain ?? "-"}
-            icon="bi-globe"
-          />
-          <DetailCard
-            label="Status"
-            value={summary.status}
-            status={statusMap(summary.status)}
-            icon="bi-activity"
-          />
-          <DetailCard
-            label="Started At"
-            value={new Date(summary.start_ts).toLocaleString()}
-            icon="bi-calendar-event"
-          />
-          <DetailCard
-            label="Ended At"
-            value={summary.end_ts ? new Date(summary.end_ts).toLocaleString() : "-"}
-            icon="bi-calendar-check"
-          />
-          <DetailCard
-            label="Duration"
-            value={durationSeconds !== null ? `${durationSeconds}s` : "-"}
-            icon="bi-clock"
-          />
-        </div>
-      </div>
-
-      {/* Timeline Section */}
-      <RunTimeline 
-        runName={summary.run_name} 
+      <RunTimeline
+        runName={summary.run_name}
         hoveredMetric={hoveredMetric}
         hoveredPlan={hoveredPlan}
         onHoverPlan={setHoveredPlan}
-        onHoverMetric={setHoveredMetric} 
-        
+        onHoverMetric={setHoveredMetric}
+        onDurationCalculated={setExecutionDuration}
       />
 
-      {/* Filters Section */}
-      <div className={styles.filtersContainer}>
-        <div className={styles.filtersCard}>
-          <h2 className={styles.filtersTitle}>
-            <i className="bi-funnel"></i>
-            Filter Results
-          </h2>
-          <RunDetailsFilters
-            metrics={filtersData.metrics}
-            statuses={filtersData.statuses}
-            loading={loading}
-            activeFilters={activeFilters}
-            onFilterChange={handleFilterChange}
-          />
+      <div className={styles.flex}>
+        {/* ── LEFT CARD — natural height, drives table height ── */}
+        <div className={styles.summaryCard} ref={summaryCardRef}>
+          <div className={styles.summaryContent}>
+            <DetailCard label="Target" value={summary.target ?? "-"} icon="bi-bullseye" />
+            <DetailCard label="Domain" value={summary.domain ?? "-"} icon="bi-globe" />
+            {/* <DetailCard
+              label="Status"
+              value={summary.status}
+              status={statusMap(summary.status)}
+              icon="bi-activity"
+            /> */}
+            <DetailCard
+              label="Started At"
+              value={new Date(summary.start_ts).toLocaleString()}
+              icon="bi-calendar-event"
+            />
+            <DetailCard
+              label="Ended At"
+              value={summary.end_ts ? new Date(summary.end_ts).toLocaleString() : "-"}
+              icon="bi-calendar-check"
+            />
+            <DetailCard
+              label="Duration"
+              value={executionDuration ?? "-"}
+              icon="bi-clock"
+            />
+            <div className={styles.actionsRow}>
+              <div className={styles.actionsGroup}>
+                <button
+                  type="button"
+                  className={`${styles.actionIconButton} ${styles.actionContinue}`}
+                  data-tooltip="Continue"
+                  onClick={() => navigate(`/continue-run/${summary.run_name}`)}
+                  title="Continue"
+                  aria-label={`Continue ${summary.run_name}`}
+                >
+                  <i className="bi bi-arrow-clockwise"></i>
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.actionIconButton} ${styles.actionAnalyse}`}
+                  data-tooltip="Analyse"
+                  onClick={() => {
+                    if (hasExistingScores) {
+                      const confirmReanalyse = window.confirm(
+                        "This run already has a score. Do you want to reanalyse?"
+                      );
+
+                      if (!confirmReanalyse) return;
+                    }
+
+                    navigate(`/analyse/${encodeURIComponent(summary.run_name)}`);
+                  }}
+                  title="Analyse"
+                  aria-label={`Analyse ${summary.run_name}`}
+                >
+                  <i className="bi bi-bar-chart-fill"></i>
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.actionIconButton} ${styles.actionReport}`}
+                  data-tooltip="Report"
+                  onClick={() => {
+                    const link = document.createElement("a");
+                    link.href = API_ENDPOINTS.DOWNLOAD_REPORT(summary.run_name);
+                    link.setAttribute("download", `${summary.run_name}-evaluation.xlsx`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  }}
+                  title="Report"
+                  aria-label={`Download report for ${summary.run_name}`}
+                >
+                  <i className="bi bi-clipboard2-check"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── RIGHT TABLE — height locked to left card height ── */}
+        <div className={styles.tableLayout}>
+          <section className={styles.tableSection}>
+            <div
+              className={`${styles.tableContainer}${isAtBottom ? ` ${styles.atBottom}` : ""}`}
+            >
+              <div
+                ref={tableScrollRef}
+                className={`${styles.tableScroll} table-responsive`}
+              >
+                <table className={styles.resultsTable}>
+                  <thead>
+                    <tr>
+                      <th>Plan Name</th>
+                      <th>Test Case</th>
+
+                      {/* Metric Column with Filter */}
+                      <th>
+                        <div className="header-content">
+                          <span>Metric</span>
+                          <div
+                            className="filter-wrapper"
+                            ref={(el) => { filterRefs.current["metric"] = el; }}
+                          >
+                            <button
+                              className="filter-trigger"
+                              onClick={() =>
+                                setOpenFilterColumn(openFilterColumn === "metric" ? null : "metric")
+                              }
+                            >
+                              <i className={`bi bi-funnel${activeFilters.metric ? "-fill" : ""}`}></i>
+                            </button>
+                            {openFilterColumn === "metric" && (
+                              <div className="filter-dropdown">
+                                <div className="filter-options">
+                                  <select
+                                    className="form-select form-select-sm"
+                                    value={activeFilters.metric || ""}
+                                    onChange={(e) => handleFilterChange("metric", e.target.value)}
+                                  >
+                                    <option value="">All Metrics</option>
+                                    {filtersData.metrics.map((opt) => (
+                                      <option key={opt.filter_name} value={opt.filter_name}>
+                                        {opt.filter_name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {activeFilters.metric && (
+                                    <button
+                                      className="btn btn-sm btn-outline-secondary mt-2 w-100"
+                                      onClick={() => handleFilterChange("metric", "")}
+                                    >
+                                      Clear Filter
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </th>
+
+                      <th>Score</th>
+
+                      {/* Status Column with Filter */}
+                      <th>
+                        <div className="header-content">
+                          <span>Status</span>
+                          <div
+                            className="filter-wrapper"
+                            ref={(el) => { filterRefs.current["status"] = el; }}
+                          >
+                            <button
+                              className="filter-trigger"
+                              onClick={() =>
+                                setOpenFilterColumn(openFilterColumn === "status" ? null : "status")
+                              }
+                            >
+                              <i className={`bi bi-funnel${activeFilters.status ? "-fill" : ""}`}></i>
+                            </button>
+                            {openFilterColumn === "status" && (
+                              <div className="filter-dropdown">
+                                <div className="filter-options">
+                                  <select
+                                    className="form-select form-select-sm"
+                                    value={activeFilters.status || ""}
+                                    onChange={(e) => handleFilterChange("status", e.target.value)}
+                                  >
+                                    <option value="">All Statuses</option>
+                                    {filtersData.statuses.map((opt) => (
+                                      <option key={opt.filter_name} value={opt.filter_name}>
+                                        {opt.filter_name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {activeFilters.status && (
+                                    <button
+                                      className="btn btn-sm btn-outline-secondary mt-2 w-100"
+                                      onClick={() => handleFilterChange("status", "")}
+                                    >
+                                      Clear Filter
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {details.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className={styles.emptyState}>
+                          No test case details found
+                        </td>
+                      </tr>
+                    ) : (
+                      Object.entries(groupedByPlan).flatMap(([planName, planDetails]) =>
+                        planDetails.map((d, index) => {
+                          const normalizedStatus = d.status.toUpperCase();
+                          const statusClass =
+                            normalizedStatus === "COMPLETED" || normalizedStatus === "SUCCESS"
+                              ? styles.statusCompleted
+                              : normalizedStatus === "FAILED"
+                              ? styles.statusFailed
+                              : normalizedStatus === "NEW"
+                              ? styles.statusNew
+                              : styles.statusRunning;
+
+                          return (
+                            <tr
+                              key={d.detail_id}
+                              role="button"
+                              tabIndex={0}
+                              aria-pressed={selectedDetailId === d.detail_id}
+                              className={`${styles.tableRow} ${
+                                hoveredMetric === d.metric_name ? styles.metricRowHover : ""
+                              } ${selectedDetailId === d.detail_id ? styles.selectedRow : ""}`}
+                              data-bs-toggle="modal"
+                              data-bs-target="#conversationModal"
+                              onClick={(e) => {
+                                if (isPlanCellEvent(e.target)) return;
+                                setSelectedConversationId(Number(d.conversation_id));
+                                setSelectedDetailId(d.detail_id);
+                              }}
+                              onKeyDown={(e) => {
+                                if (isPlanCellEvent(e.target)) return;
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  setSelectedConversationId(Number(d.conversation_id));
+                                  setSelectedDetailId(d.detail_id);
+                                }
+                              }}
+                              onMouseEnter={() => setHoveredMetric(d.metric_name)}
+                              onMouseLeave={() => setHoveredMetric(null)}
+                            >
+                              {index === 0 && (
+                                <td
+                                  rowSpan={planDetails.length}
+                                  data-plan-cell="true"
+                                  className={`${styles.planCell} align-middle text-center`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onKeyDown={(e) => e.stopPropagation()}
+                                >
+                                  {planName}
+                                </td>
+                              )}
+                              <td>{d.testcase_name}</td>
+                              <td>{d.metric_name}</td>
+                              <td>{formatScore(d.score)}</td>
+                              <td>
+                                <span className={`${styles.statusCell} ${statusClass}`}>
+                                  {normalizedStatus}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            </section>
         </div>
       </div>
-
-      {/* Table Section */}
-       <section className={styles.tableSection}>
-  <div className={styles.tableContainer}>
-    <div className="table-responsive">
-      <table className="table table-bordered table-hover">
-        <thead>
-          <tr>
-            <th style={{ width: '20%' }}>Plan Name</th>
-            <th>Test Case</th>
-            <th>Metric</th>
-            <th>Score</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {details.length === 0 ? (
-            <tr>
-              <td colSpan={5} className="text-center py-4 text-muted">
-                No test case details found
-              </td>
-            </tr>
-          ) : (
-            Object.entries(groupedByPlan).flatMap(([planName, planDetails]) =>
-              planDetails.map((d, index) => {
-                // ✅ Log info when rendering each row
-                console.log("Rendering rowwwwww:", d.metric_name, "Hovered metric:", hoveredMetric);
-
-                return (
-                  <tr
-                    key={d.detail_id}
-                    role="button"
-                    className={`cursor-pointer ${
-                      hoveredMetric === d.metric_name ? styles.metricRowHover : ""
-                    }`}
-                    data-bs-toggle="modal"
-                    data-bs-target="#conversationModal"
-                    onClick={() => setSelectedConversationId(Number(d.conversation_id))}
-                    onMouseEnter={() => {
-                      console.log("Mouse enter row:", d.metric_name);
-                      setHoveredMetric(d.metric_name);
-                    }}
-                    onMouseLeave={() => {
-                      console.log("Mouse leave row:", d.metric_name);
-                      setHoveredMetric(null);
-                    }}
-                  >
-                    {/* <td >{`Metric: ${d.metric_name}, Hovered: ${hoveredMetric}, Match: ${hoveredMetric === d.metric_name}, ClassName: ${hoveredMetric === d.metric_name ? styles.metricRowHover : "NONE"}`}</td> */}
-                    {index === 0 && (
-                      <td
-                        rowSpan={planDetails.length}
-                        className={`${styles.planCell} align-middle text-center`}
-                        style={{
-                          fontWeight: 500,
-                          borderRight: '1px solid #e2e8f0',
-                          minWidth: '200px',
-                        }}
-                      >
-                        {planName}
-                      </td>
-                    )}
-                    <td className="font-medium text-gray-900">{d.testcase_name}</td>
-                    <td className="text-gray-700">{d.metric_name}</td>
-                    <td className="font-medium text-gray-900">{d.score ?? "-"}</td>
-                    <td>
-                      <span
-                        className={`${styles.statusCell} ${
-                          d.status === "Completed"
-                            ? styles.statusCompleted
-                            : d.status === "FAILED"
-                            ? styles.statusFailed
-                            : styles.statusRunning
-                        }`}
-                      >
-                        {d.status.toLowerCase()}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })
-            )
-          )}
-        </tbody>
-      </table>
-    </div>
-  </div>
-</section>
 
       <Modal conversationId={selectedConversationId} />
     </div>

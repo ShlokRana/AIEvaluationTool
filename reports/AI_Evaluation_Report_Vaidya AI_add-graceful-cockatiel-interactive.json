@@ -1,0 +1,54 @@
+{
+    "Conversational_Quality": {
+        "ROUGE": {
+            "Testcases": {
+                "P85": 0.0,
+                "P76": 0.0
+            },
+            "Evaluation_Reason": {
+                "P85": "Could not get a proper reasoning for the score.",
+                "P76": "Could not get a proper reasoning for the score."
+            },
+            "metric_summary": "The ROUGE metric's inability to provide clear reasoning for its scores suggests potential gaps in evaluating the system's text generation quality, indicating either insufficient alignment with reference content or limitations in capturing meaningful overlaps, which hinders actionable insights for improvement.",
+            "metric_score": 0.0,
+            "plan_summary": "The plan demonstrates strength in generating fluent, coherent outputs but relies on metrics with limited diagnostic value, as key evaluation tools like ROUGE, BLEU, and Lexical Diversity fail to clarify reasoning behind scores, obscuring alignment with reference content, vocabulary variety, and semantic accuracy. This undermines actionable insights for improving text quality beyond surface-level fluency, suggesting a gap between measurable performance and meaningful conversational effectiveness.",
+            "run_summary": ""
+        },
+        "Lexical_Diversity": {
+            "Testcases": {
+                "P46": 0.847745664739884
+            },
+            "Evaluation_Reason": {
+                "P46": "Could not get a proper reasoning for the score."
+            },
+            "metric_summary": "The lexical diversity metric's reliability is compromised due to an inability to determine the reasoning behind the score, limiting its usefulness in assessing vocabulary variety and potentially masking underlying strengths or weaknesses in the system's language capabilities.",
+            "metric_score": 0.848,
+            "plan_summary": "The plan demonstrates strength in generating fluent, coherent outputs but relies on metrics with limited diagnostic value, as key evaluation tools like ROUGE, BLEU, and Lexical Diversity fail to clarify reasoning behind scores, obscuring alignment with reference content, vocabulary variety, and semantic accuracy. This undermines actionable insights for improving text quality beyond surface-level fluency, suggesting a gap between measurable performance and meaningful conversational effectiveness.",
+            "run_summary": ""
+        },
+        "BLEU": {
+            "Testcases": {
+                "P73": 0.0
+            },
+            "Evaluation_Reason": {
+                "P73": "Could not get a proper reasoning for the score."
+            },
+            "metric_summary": "The BLEU metric highlights strengths in n-gram overlap between generated and reference texts, but without proper reasoning, it obscures the underlying causes of the score, potentially masking issues in fluency or semantic accuracy. This limits its utility for diagnosing specific system weaknesses or validating meaningful alignment with intended output.",
+            "metric_score": 0.0,
+            "plan_summary": "The plan demonstrates strength in generating fluent, coherent outputs but relies on metrics with limited diagnostic value, as key evaluation tools like ROUGE, BLEU, and Lexical Diversity fail to clarify reasoning behind scores, obscuring alignment with reference content, vocabulary variety, and semantic accuracy. This undermines actionable insights for improving text quality beyond surface-level fluency, suggesting a gap between measurable performance and meaningful conversational effectiveness.",
+            "run_summary": ""
+        },
+        "Fluency_Score": {
+            "Testcases": {
+                "P1170": 0.0
+            },
+            "Evaluation_Reason": {
+                "P1170": ""
+            },
+            "metric_summary": "The Fluency_Score reflects the system's ability to generate coherent, natural, and grammatically consistent outputs. High fluency indicates smooth and readable responses, enhancing user experience, while lower fluency may suggest issues with structure or coherence, potentially leading to misunderstandings or reduced usability.",
+            "metric_score": 0.0,
+            "plan_summary": "The plan demonstrates strength in generating fluent, coherent outputs but relies on metrics with limited diagnostic value, as key evaluation tools like ROUGE, BLEU, and Lexical Diversity fail to clarify reasoning behind scores, obscuring alignment with reference content, vocabulary variety, and semantic accuracy. This undermines actionable insights for improving text quality beyond surface-level fluency, suggesting a gap between measurable performance and meaningful conversational effectiveness.",
+            "run_summary": ""
+        }
+    }
+}

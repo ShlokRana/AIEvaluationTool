@@ -2,8 +2,14 @@
 from sqlalchemy.orm import Session
 from database.database import SessionLocal
 from models.user import ActivityLog, Users
-from fastapi import HTTPException
 from typing import Optional
+
+
+_OPERATION_ALIASES = {
+    "created": "create",
+    "updated": "update",
+    "deleted": "delete",
+}
 
 
 def log_activity(
@@ -30,6 +36,8 @@ def log_activity(
     """
     db: Session = SessionLocal()
     try:
+        normalized_operation = _OPERATION_ALIASES.get(operation.lower(), operation.lower())
+
         # Get user to get their role
         user = db.query(Users).filter(Users.user_name == username).first()
         if not user:
@@ -44,7 +52,7 @@ def log_activity(
             entity_id=str(entity_id),
             note=note,
             user_note=user_note or "",
-            operation=operation.lower(),
+            operation=normalized_operation,
         )
         db.add(activity)
         db.commit()
@@ -57,4 +65,3 @@ def log_activity(
         return None
     finally:
         db.close()
-

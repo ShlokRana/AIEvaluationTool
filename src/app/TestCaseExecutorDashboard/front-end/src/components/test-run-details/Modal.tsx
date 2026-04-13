@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
-
+import { API_ENDPOINTS } from "../../config/api";
+import { redirectToLogin } from "../../utils/auth";
 interface ModalProps {
   conversationId: number | null;
 }
@@ -82,26 +83,6 @@ const ReasonCard = ({ score, reason }: { score: number | null; reason: string | 
     <div className="card border-0 bg-light" style={{ borderRadius: '12px' }}>
       <div className="card-body">
         <div className="d-flex align-items-start">
-          <div className="me-3">
-            <div 
-              className="rounded-circle d-flex align-items-center justify-content-center"
-              style={{ 
-                width: '40px', 
-                height: '40px', 
-                backgroundColor: '#6c757d',
-                opacity: 0.1
-              }}
-            >
-              <div 
-                className="rounded-circle"
-                style={{ 
-                  width: '8px', 
-                  height: '8px', 
-                  backgroundColor: '#6c757d'
-                }}
-              />
-            </div>
-          </div>
           <div className="flex-grow-1">
             <h6 className="card-title mb-2 fw-semibold">Evaluation Reason</h6>
             <p className="card-text mb-0 text-secondary" style={{ lineHeight: '1.6' }}>{reason}</p>
@@ -126,6 +107,18 @@ function Modal({ conversationId }: ModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const getAuthHeaders = (): HeadersInit => {
+    const token = localStorage.getItem("access_token");
+    return token
+      ? {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        }
+      : {
+          "Content-Type": "application/json",
+        };
+  };
+
   useEffect(() => {
     if (!conversationId) return;
     const fetchData = async () => {
@@ -133,7 +126,14 @@ function Modal({ conversationId }: ModalProps) {
         setError(null);
 
         try {
-        const res = await fetch(`http://localhost:7000/conversations/full/${conversationId}`);
+        const res = await fetch(API_ENDPOINTS.GET_CONVERSATION(conversationId.toString()), {
+          headers: getAuthHeaders(),
+          credentials: "include",
+        });
+        if (res.status === 401) {
+          redirectToLogin();
+          throw new Error("Unauthorized");
+        }
         if (!res.ok) throw new Error(`API error: ${res.status}`);
         const json: FullConversationData = await res.json();
         setData(json);

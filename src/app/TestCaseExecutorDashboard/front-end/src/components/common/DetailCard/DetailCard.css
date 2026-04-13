@@ -16,6 +16,7 @@
 
 .detail-label {
   font-weight: 600;
+  font-size: 0.8rem;
   margin-bottom: 0.3rem;
   display: flex;
   align-items: center;
@@ -23,25 +24,47 @@
 
 .detail-label i {
   font-size: 1rem;
+  width: 1rem;
+  height: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .detail-value {
-  font-size: 0.95rem;
+  font-size: 0.875rem;
   color: #333;
 }
 
 /* Status colors */
-.status-completed {
-  color: #28a745; /* green */
+.status-completed,
+.status-running,
+.status-failed {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  padding: 4px 14px;
+  border-radius: 12px;
+  font-size: 12px;
+  min-width: 92px;
+  width: fit-content;
+}
+
+.status-completed {
+  background-color: #d1fae5;
+  color: #065f46;
 }
 
 .status-running {
-  color: #0d6efd; /* blue */
-  font-weight: 600;
+  background-color: #dbeafe;
+  color: #1e40af;
 }
 
 .status-failed {
-  color: #dc3545; /* red */
-  font-weight: 600;
+  background-color: #fee2e2;
+  color: #991b1b;
 }

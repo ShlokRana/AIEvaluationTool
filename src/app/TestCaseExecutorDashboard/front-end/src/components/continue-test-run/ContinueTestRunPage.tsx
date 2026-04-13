@@ -1,17 +1,19 @@
-import React,{useState, useEffect} from 'react';
+import React, { useState, useEffect } from 'react';
 import './ContinueTestRunPage.css';
-
-// Import only the Bootstrap CSS for the select components
-
+import 'bootstrap/dist/css/bootstrap.min.css';
+import { Accordion, Button } from 'react-bootstrap';
 import CustomSelect from './CustomSelect/CustomSelect';
 import Loop from './Loop/Loop';
+import { API_BASE_URL, API_ENDPOINTS, WS_BASE_URL } from "../../config/api";
+import { useParams } from 'react-router-dom';
+import { getAuthHeaders, redirectToLogin } from '../../utils/auth';
 
 interface RunFormData {
-  runName: string;   // ✅ add this
-  target: string;
+  runName: string;
+  // target: string;
   testPlan: string; 
-  testCaseId: number | null;
-  metric: string;     // ✅ name
+  testCaseId: string ;
+  metric: string;
   maxTestCases: string;
   domain: string;
   language: string;
@@ -31,193 +33,393 @@ interface AllFiltersResponse {
 }
 
 const ContinueRunPage: React.FC = () => {
-  // Sample data for dropdowns
-  // const targets = ['Vaidya AI', 'Target 2', 'Target 3'];
-  const testPlans = ['Plan 1', 'Plan 2', 'Plan 3'];
-  const metrics = ['Accuracy', 'Precision', 'Recall', 'F1 Score'];
-  const maxTestCases = ['10', '20', '30', '50', '100'];
-  const domains = ['E-commerce', 'Healthcare', 'Finance', 'Education'];
+
+  const maxTestCases = ['10', '1', '30', '50', '100'];
   const languages = ['English', 'Spanish', 'French', 'German', 'Chinese'];
   const [isRunning, setIsRunning] = useState(false);
   const [totalTestCases, setTotalTestCases] = useState(0);
   const [filters, setFilters] = useState<AllFiltersResponse | null>(null);
+  const [existingRun, setExistingRun] = useState<any>(null);
+  const [groupedDetails, setGroupedDetails] = useState<Record<string, string[]>>({});
   const [planMetrics, setPlanMetrics] = useState<string[]>([]);
+  const [domainOptions, setDomainOptions] = useState<string[]>([]);
+  const [languageOptions, setLanguageOptions] = useState<string[]>([]);
   
   const [formData, setFormData] = useState<RunFormData>({
-    runName:"",   // ✅ initialize this
-    target: "",
+    runName: "",
+    // target: "",
     testPlan: "",
-    testCaseId:null,
-    
+    testCaseId: "",
     metric: "",
-    maxTestCases: "10", // 👈 default selected
+    maxTestCases: "10",
     domain: "",
     language: "",
   });
-  const isStartDisabled = !formData.testPlan || isRunning
+
+  const isStartDisabled = !formData.testPlan || isRunning;
+  
+
+  const { runName } = useParams();
+
   useEffect(() => {
-  const fetchFilters = async () => {
+    const fetchFilters = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.GET_ALL_FILTERS}`, {
+          headers: getAuthHeaders(),
+          credentials: "include",
+        });
+
+        if (res.status === 401) {
+          redirectToLogin();
+          return;
+        }
+
+        if (!res.ok) {
+          throw new Error(`Failed to fetch filters (${res.status})`);
+        }
+
+        const data: AllFiltersResponse = await res.json();
+        setFilters(data);
+      } catch (err) {
+        console.error("Failed to fetch filters", err);
+      }
+    };
+    fetchFilters();
+  }, []);
+
+  useEffect(() => {
+    if (runName) {
+      handleChange("runName", runName);
+      handleFetchRun(runName);
+    }
+  }, [runName]);
+
+  const fetchMetricsByPlan = async (planName: string) => {
     try {
-      const res = await fetch("http://localhost:7000/get_all_filters");
-      const data: AllFiltersResponse = await res.json();
-      setFilters(data);
+      const res = await fetch(API_ENDPOINTS.GET_METRICS_BY_PLAN(planName), {
+        headers: getAuthHeaders(),
+        credentials: "include",
+      });
+
+      if (res.status === 401) {
+        redirectToLogin();
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error(`Failed to fetch metrics (${res.status})`);
+      }
+
+      const data = await res.json();
+      setPlanMetrics(data.map((m: any) => m.filter_name));
     } catch (err) {
-      console.error("Failed to fetch filters", err);
+      console.error("Failed to fetch metrics", err);
+      setPlanMetrics([]);
     }
   };
 
-  fetchFilters();
-}, []);
-const fetchMetricsByPlan = async (planName: string) => {
-  try {
-    const res = await fetch(
-      `http://localhost:7000/get_metrics_by_plan/${planName}`
-    );
-    const data = await res.json();
-    setPlanMetrics(data.map((m: any) => m.filter_name));
-  } catch (err) {
-    console.error("Failed to fetch metrics", err);
-    setPlanMetrics([]);
-  }
-};
-const handleChange = (key: string, value: any) => {
-  setFormData(prev => ({
-    ...prev,
-    [key]: value,
-    ...(key === "testPlan" && { metric: "" })
-  }));
+  const handleFetchRun = async (nameOverride?: string) => {
+    const name = nameOverride || formData.runName;
+    try {
+      const res = await fetch(`${API_BASE_URL}/continue-run`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        credentials: "include",
+        body: JSON.stringify({ run_name: name }),
+      });
 
-  if (key === "testPlan") {
-    fetchMetricsByPlan(value); // 🔥 second fetch happens here
-  }
-};
+      if (res.status === 401) {
+        redirectToLogin();
+        return;
+      }
 
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();  // 🚨 VERY IMPORTANT
+      if (!res.ok) {
+        alert("Run not found");
+        return;
+      }
 
-  console.log("Submitting run name:", formData.runName);
+      const data = await res.json();
+      
+      setExistingRun(data.run);
+      if (data.run?.target) {
+        fetchTargetMetadata(data.run.target);
+      }
 
-  try {
-    const res = await fetch("http://localhost:7000/continue-run", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        run_name: formData.runName,
-      }),
-    });
+      const grouped: Record<string, string[]> = {};
+      data.details.forEach((d: any) => {
+        if (!grouped[d.plan_name]) grouped[d.plan_name] = [];
+        if (!grouped[d.plan_name].includes(d.metric_name)) {
+          grouped[d.plan_name].push(d.metric_name);
+        }
+      });
 
-    if (!res.ok) {
-      console.error("Run not found");
+      setGroupedDetails(grouped);
+
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchTargetMetadata = async (targetName: string) => {
+    try {
+      const res = await fetch(
+        API_ENDPOINTS.GET_TARGET_METADATA(targetName),
+        {
+          headers: getAuthHeaders(),
+          credentials: "include",
+        }
+      );
+
+      if (res.status === 401) {
+        redirectToLogin();
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error("Failed to fetch target metadata");
+      }
+
+      const data = await res.json();
+
+      setDomainOptions(data.domains || []);
+      setLanguageOptions(data.languages || []);
+
+      setFormData(prev => ({
+        ...prev,
+        domain: "",
+        language: ""
+      }));
+
+    } catch (err) {
+      console.error("Error fetching target metadata:", err);
+      setDomainOptions([]);
+      setLanguageOptions([]);
+    }
+  };
+
+  const handleChange = (key: string, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      [key]: value,
+      ...(key === "testPlan" && { metric: "" })
+    }));
+
+    if (key === "testPlan") {
+      fetchMetricsByPlan(value);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!formData.runName) {
+      alert("Please enter a run name and fetch it first.");
       return;
     }
 
-    const data = await res.json();
-    console.log("Continue Run Response:", data);
+    if (!existingRun) {
+      alert("Please fetch a valid run before continuing.");
+      return;
+    }
 
-  } catch (err) {
-    console.error("Error:", err);
-  }
-};  
+    try {
+      const res = await fetch(`${API_BASE_URL}/continue-run-with-plan`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        credentials: "include",
+        body: JSON.stringify(formData),
+      });
+
+      if (res.status === 401) {
+        redirectToLogin();
+        return;
+      }
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.detail || "Failed to continue run");
+        return;
+      }
+
+      setTotalTestCases(data.totalTestCases);
+      setIsRunning(true);
+
+      const ws = new WebSocket(`${WS_BASE_URL}/ws/test-run`);
+
+      ws.onopen = () => {
+        console.log("WebSocket connected for continue");
+        ws.send(JSON.stringify(data));
+      };
+
+      ws.onmessage = (event) => {
+        const update = JSON.parse(event.data);
+        console.log("Continue update:", update);
+      };
+
+      ws.onclose = () => {
+        console.log("WebSocket closed");
+        setIsRunning(false);
+      };
+
+    } catch (err) {
+      console.error("Error continuing run:", err);
+      setIsRunning(false);
+    }
+  };
 
   return (
     <div className="new-test-run-container">
       <h1>Continue Test Run</h1>
-      <p className="subtitle">Configure and start AI evaluation run</p>
-      
-      
+      <p className="subtitle">Use the existing setup or update plan, metrics, and test cases before running</p>
 
-      <form className="filters-container" onSubmit={handleSubmit}>
-        <div className="form-group">
-        <label>Test Run Name</label>
-        <input 
-          type="text" 
-          className="form-input" 
-          defaultValue="Regression test" 
-          onChange={(e) => handleChange("runName", e.target.value)}
-        />
+      <div className="accordion-container">
+        <Accordion defaultActiveKey={null} className="mb-3">
+          {existingRun && (
+            <Accordion.Item eventKey="0">
+              <Accordion.Header>Run Details</Accordion.Header>
+              <Accordion.Body>
+                <div className="run-details-accordion">
+                  <div className="row">
+                    <div className="col-md-6">
+                      <p><strong>Target:</strong> {existingRun.target || 'N/A'}</p>
+                      <p><strong>Status:</strong> 
+                        <span className={`badge bg-${existingRun.status === 'completed' ? 'success' : 'warning'}`}>
+                          {existingRun.status || 'N/A'}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="col-md-6">
+                      <p><strong>Start Time:</strong> {existingRun.start_ts || 'N/A'}</p>
+                      <p><strong>End Time:</strong> {existingRun.end_ts || 'In Progress'}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4">
+                    <h5>Metrics by Plan</h5>
+                    {Object.entries(groupedDetails).map(([plan, metrics]) => (
+                      <div key={plan} className="mb-3">
+                        <h6>{plan}</h6>
+                        <div className="list-group">
+                          {metrics.map((metric, idx) => (
+                            <div key={idx} className="list-group-item">
+                              {metric}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Accordion.Body>
+            </Accordion.Item>
+          )}
+
+          <Accordion.Item eventKey="1">
+            <Accordion.Header 
+              className={!existingRun ? 'text-muted' : ''}
+              onClick={(e) => !existingRun && e.preventDefault()}
+            >
+              Use Existing or Modify Setup {!existingRun && <span className="ms-2">(Fetching run...)</span>}
+            </Accordion.Header>
+            <Accordion.Body>
+              {existingRun ? (
+                <form className="filters-container" onSubmit={handleSubmit}>
+                  <div className="filters-row">
+                    {/* <div className="filter-item">
+                      <label>Target</label>
+                      <CustomSelect
+                        options={filters?.targets?.map(t => t.filter_name) ?? []}
+                        defaultText="Select Target"
+                        onChange={(val: string) => handleChange("target", val)}
+                      />
+                    </div> */}
+
+                    <div className="filter-item">
+                      <label>Test Plan</label>
+                      <CustomSelect
+                        options={filters?.plans?.map(p => p.filter_name) ?? []}
+                        defaultText="Select Test Plan"
+                        onChange={(val: string) => handleChange("testPlan", val)}
+                      />
+                    </div>
+                      <div className="filter-item">
+                      <label>Metric</label>
+                      <CustomSelect
+                        options={planMetrics}
+                        defaultText={formData.testPlan ? "All Metrics" : "Select Test Plan first"}
+                        disabled={!formData.testPlan}
+                        onChange={(val) => handleChange("metric", val)}
+                      />
+                    </div>
+                    <div className="filter-item">
+                      <label>Test Case Name</label>
+                      <input
+                        type="text"
+                        placeholder={
+                          formData.testPlan ? "Enter TestCase Name" : "Select Test Plan first"
+                        }
+                        value={formData.testCaseId ?? ""}
+                        disabled={!formData.testPlan}
+                        onChange={(e) => handleChange("testCaseId", e.target.value)}
+                      />
+                    </div>
+
+                    
+                  </div>
+
+                  <div className="filters-row">
+                    <div className="filter-item">
+                      <label>Max test cases</label>
+                      <CustomSelect
+                        options={maxTestCases}
+                        defaultText="Select Max"
+                        onChange={(val) => handleChange("maxTestCases", val)}
+                      />
+                    </div>
+
+                    <div className="filter-item">
+                      <label>Domain</label>
+                      <CustomSelect
+                       options={domainOptions }
+                        defaultText="All Domains"
+                        onChange={(val) => handleChange("domain", val)}
+                      />
+                    </div>
+
+                    <div className="filter-item">
+                      <label>Language</label>
+                      <CustomSelect
+                        options={languageOptions}
+                        defaultText="All Languages"
+                        onChange={(val) => handleChange("language", val)}
+                      />
+                    </div>
+                  </div>
+
+                  <button type="submit" className="start-button" disabled={isStartDisabled}>
+                    Start Run
+                  </button>
+                </form>
+              ) : (
+                <div className="text-center py-3 text-muted">
+                  Please wait while we fetch the run details...
+                </div>
+              )}
+              {isRunning && (
+                <Loop
+                  isRunning={isRunning}
+                  totalTestCases={totalTestCases}
+                  stepsPerTestCase={4}
+                  stepNames={["Prepare", "Finding elements", "Execute", "Store"]}
+                  planName={formData.testPlan}
+                  metricName={formData.metric}
+                />
+              )}
+            </Accordion.Body>
+          </Accordion.Item>
+        </Accordion>
       </div>
-        <div className="filters-row">
-          <div className="filter-item">
-            <label>Target</label>
-            <CustomSelect
-              options={filters?.targets.map(t => t.filter_name) ?? []}
-              defaultText="Select Target"
-              onChange={(val) => handleChange("target", val)}
-            />
-          </div>
-
-          <div className="filter-item">
-            <label>Test Plan</label>
-            <CustomSelect
-              options={filters?.plans.map(p => p.filter_name) ?? []}
-              defaultText="Select Test Plan"
-              onChange={(val) => handleChange("testPlan", val)}
-            />
-          </div>
-          <div className="filter-item">
-            <label>Test Case ID</label>
-            <input
-              type="number"
-              placeholder="Enter Test Plan ID"
-              value={formData.testCaseId?? ""}
-              disabled={!formData.testPlan}
-              onChange={(e) =>
-                handleChange("testCaseId", Number(e.target.value))
-              }
-            />
-          </div>
-
-          <div className="filter-item">
-            <label>Metric </label>
-            <CustomSelect
-              options={planMetrics}
-              defaultText={
-                formData.testPlan ? "Select Metric" : "Select Test Plan first"
-              }
-              
-              disabled={!formData.testPlan}
-              onChange={(val) => handleChange("metric", val)}
-            />
-          </div>
-        </div>
-
-        <div className="filters-row">
-          <div className="filter-item">
-            <label>Max test cases</label>
-            <CustomSelect
-              options={maxTestCases}
-              defaultText="Select Max"
-              onChange={(val) => handleChange("maxTestCases", val)}
-            />
-          </div>
-
-          <div className="filter-item">
-            <label>Domain</label>
-            <CustomSelect
-              options={filters?.domains.map(p => p.filter_name) ?? []}
-              defaultText="Select Domain"
-              onChange={(val) => handleChange("domain", val)}
-            />
-          </div>
-
-          <div className="filter-item">
-            <label>Language</label>
-            <CustomSelect
-              options={languages}
-              defaultText="Select Language"
-              onChange={(val) => handleChange("language", val)}
-            />
-          </div>
-        </div>
-
-        <button type="submit" className="start-button" disabled={isStartDisabled}>
-          Start Run
-        </button>
-      </form>
-      
-      
     </div>
   );
 };

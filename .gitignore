@@ -24,7 +24,7 @@ test.py
 improvement_eval.py
 .deepeval
 saved_evaluations
-#*.png
+# *.png
 new_fairness_stereotype_recognition.py
 *.pkl
 .strategy_*.json
@@ -63,6 +63,4 @@ strategy_id/
 Documentations
 
 reports/
-.dockerignore
-audio_cache/
-agent_response_cache/
+chrome-data/

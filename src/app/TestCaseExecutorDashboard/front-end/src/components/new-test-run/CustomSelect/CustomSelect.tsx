@@ -19,7 +19,7 @@ export default function CustomSelect({
       disabled={disabled}
       defaultValue=""
     >
-      <option value="" disabled>
+      <option value="" >
         {defaultText}
       </option>
 

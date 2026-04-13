@@ -6,7 +6,7 @@
         "user": "aiet_user",
         "password": "aiet_password",
         "database": "aievaluationtool"
-    },
+        },
     "examples":{
         "db_1":{
             "engine": "mariadb",
@@ -33,7 +33,12 @@
         "agent_name": "Vaidya AI"
     },
     "interface_manager": {
-        "docker": false,
-        "base_url": "http://interface-manager:8000"
-    }
+        "docker": true,
+        "base_url": "http://interface-manager:8000",
+        "base_url_local": "http://localhost:8000"
+    },
+    "port": {
+        "back-end": "7000",
+        "interface-manager": "8000"
+  }
 }

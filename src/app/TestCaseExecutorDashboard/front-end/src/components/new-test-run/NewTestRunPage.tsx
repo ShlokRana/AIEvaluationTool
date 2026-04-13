@@ -1,10 +1,11 @@
 import React,{useState, useEffect} from 'react';
 import './NewTestRunPage.css';
-
+import { API_BASE_URL, API_ENDPOINTS,WS_BASE_URL } from "../../config/api";
 // Import only the Bootstrap CSS for the select components
 
 import CustomSelect from './CustomSelect/CustomSelect';
 import Loop from './Loop/Loop';
+import { getAuthHeaders, redirectToLogin } from "../../utils/auth";
 
 interface RunFormData {
   runName?: string;   // 👈 add this
@@ -19,6 +20,7 @@ interface RunFormData {
 
 interface FilterItem {
   filter_name: string;
+  extra_info?: string; // optional, matches backend
 }
 
 interface AllFiltersResponse {
@@ -35,14 +37,16 @@ const NewTestRunPage: React.FC = () => {
   // const targets = ['Vaidya AI', 'Target 2', 'Target 3'];
   const testPlans = ['Plan 1', 'Plan 2', 'Plan 3'];
   const metrics = ['Accuracy', 'Precision', 'Recall', 'F1 Score'];
-  const maxTestCases = ['10', '20', '30', '50', '100'];
+  const maxTestCases = ['20', '30', '50', '100'];
   const domains = ['E-commerce', 'Healthcare', 'Finance', 'Education'];
   const languages = ['Tamil', 'Hindi', 'Assamese', 'Bengali', 'Sindhi', 'Bodo'];
+  const [domainOptions, setDomainOptions] = useState<string[]>([]);
+  const [languageOptions, setLanguageOptions] = useState<string[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [totalTestCases, setTotalTestCases] = useState(0);
   const [filters, setFilters] = useState<AllFiltersResponse | null>(null);
   const [planMetrics, setPlanMetrics] = useState<string[]>([]);
-  
+
   const [formData, setFormData] = useState<RunFormData>({
     runName: "",   
     target: "",
@@ -53,62 +57,142 @@ const NewTestRunPage: React.FC = () => {
     domain: "",
     language: "",
   });
-  const isStartDisabled = !formData.testPlan || !formData.target  || isRunning
-  useEffect(() => {
-  const fetchFilters = async () => {
+
+  const fetchTargetMetadata = async (targetName: string) => {
     try {
-      const res = await fetch("http://localhost:7000/get_all_filters");
-      const data: AllFiltersResponse = await res.json();
-      setFilters(data);
+      const res = await fetch(
+        API_ENDPOINTS.GET_TARGET_METADATA(targetName),
+        {
+          headers: getAuthHeaders(),
+          credentials: "include",
+        }
+      );
+
+      if (res.status === 401) {
+        redirectToLogin();
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error("Failed to fetch target metadata");
+      }
+
+      const data = await res.json();
+
+      setDomainOptions(data.domains || []);
+      setLanguageOptions(data.languages || []);
+
+      // Optional: reset selected domain & language
+      setFormData(prev => ({
+        ...prev,
+        domain: "",
+        language: ""
+      }));
+
     } catch (err) {
-      console.error("Failed to fetch filters", err);
+      console.error("Error fetching target metadata:", err);
+      setDomainOptions([]);
+      setLanguageOptions([]);
     }
   };
 
-  fetchFilters();
-}, []);
-const fetchMetricsByPlan = async (planName: string) => {
-  try {
-    const res = await fetch(
-      `http://localhost:7000/get_metrics_by_plan/${planName}`
-    );
-    const data = await res.json();
-    setPlanMetrics(data.map((m: any) => m.filter_name));
-  } catch (err) {
-    console.error("Failed to fetch metrics", err);
-    setPlanMetrics([]);
-  }
-};
-const handleChange = (key: string, value: any) => {
-  setFormData(prev => ({
-    ...prev,
-    [key]: value,
-    ...(key === "testPlan" && { metric: "" })
-  }));
+  const isStartDisabled = !formData.testPlan || !formData.target  || isRunning;
+  const isTargetSelected = !!formData.target;
 
-  if (key === "testPlan") {
-    fetchMetricsByPlan(value); // 🔥 second fetch happens here
-  }
-};
+  useEffect(() => {
+    const fetchFilters = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}${API_ENDPOINTS.GET_ALL_FILTERS}`, {
+          headers: getAuthHeaders(),
+          credentials: "include",
+        });
+
+        if (res.status === 401) {
+          redirectToLogin();
+          return;
+        }
+
+        if (!res.ok) {
+          throw new Error(`Failed to fetch filters (${res.status})`);
+        }
+
+        const data: AllFiltersResponse = await res.json();
+        setFilters(data);
+      } catch (err) {
+        console.error("Failed to fetch filters", err);
+      }
+    };
+
+    fetchFilters();
+  }, []);
+
+  const fetchMetricsByPlan = async (planName: string) => {
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/get_metrics_by_plan/${planName}`,
+        {
+          headers: getAuthHeaders(),
+          credentials: "include",
+        }
+      );
+
+      if (res.status === 401) {
+        redirectToLogin();
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error(`Failed to fetch metrics (${res.status})`);
+      }
+
+      const data = await res.json();
+      setPlanMetrics(data.map((m: any) => m.filter_name));
+    } catch (err) {
+      console.error("Failed to fetch metrics", err);
+      setPlanMetrics([]);
+    }
+  };
+
+  const handleChange = (key: string, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      [key]: value,
+      ...(key === "testPlan" && { metric: "" })
+    }));
+
+    if (key === "testPlan") {
+      fetchMetricsByPlan(value); // 🔥 second fetch happens here
+    }
+    if (key === "target") {
+      fetchTargetMetadata(value);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsRunning(true); 
-    const res = await fetch("http://localhost:7000/start-run", {
+    
+    const res = await fetch(`${API_BASE_URL}/start-run`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: getAuthHeaders(),
+      credentials: "include",
       body: JSON.stringify(formData),
     });
 
+    if (res.status === 401) {
+      redirectToLogin();
+      return;
+    }
+
     const runData = await res.json(); // <-- this should now include runName, runId, testPlanId, metricId
-    console.log("POST /start-run response:", runData);
+     if (!res.ok) {
+      alert(runData.detail || "Failed to start run");
+      return;  // 🛑 STOP here
+    }
     setTotalTestCases(runData.totalTestCases);
     setIsRunning(true); // now we can start the Loop component
 
     // 2️⃣ Open WebSocket to get live updates
-    const ws = new WebSocket("ws://localhost:7000/ws/test-run");
+    const ws = new WebSocket(`${WS_BASE_URL}/ws/test-run`);
 
     ws.onopen = () => {
       console.log("WebSocket connected, sending run info");
@@ -122,11 +206,11 @@ const handleChange = (key: string, value: any) => {
       // Example: if backend sends total_test_cases
       // setTotalTestCases(data.total);
       // setCurrentTestCase(data.current);
-  };
+    };
 
-  ws.onclose = () => {
-    console.log("WebSocket closed");
-  };
+    ws.onclose = () => {
+      console.log("WebSocket closed");
+    };
   };
 
   return (
@@ -151,7 +235,11 @@ const handleChange = (key: string, value: any) => {
           <div className="filter-item">
             <label>Target</label>
             <CustomSelect
-              options={filters?.targets.map(t => t.filter_name) ?? []}
+              options={
+                filters?.targets.map(
+                  t => `${t.filter_name}${t.extra_info ? ` (${t.extra_info})` : ""}`
+                ) ?? []
+              }
               defaultText="Select Target"
               onChange={(val) => handleChange("target", val)}
             />
@@ -166,10 +254,24 @@ const handleChange = (key: string, value: any) => {
             />
           </div>
           <div className="filter-item">
-            <label>Test Case ID</label>
+            <label>Metric </label>
+            <CustomSelect
+              options={planMetrics}
+              defaultText={
+                formData.testPlan ? "All Metrics" : "Select Test Plan first"
+              }
+              
+              disabled={!formData.testPlan}
+              onChange={(val) => handleChange("metric", val)}
+            />
+          </div>
+          <div className="filter-item">
+            <label>Test Case Name</label>
             <input
               type="text"
-              placeholder="Enter Test Plan ID"
+              placeholder={
+                formData.testPlan ? "Enter TestCase Name" : "Select Test Plan first"
+              }
               value={formData.testCaseId?? ""}
               disabled={!formData.testPlan}
               onChange={(e) =>
@@ -178,18 +280,7 @@ const handleChange = (key: string, value: any) => {
             />
           </div>
 
-          <div className="filter-item">
-            <label>Metric </label>
-            <CustomSelect
-              options={planMetrics}
-              defaultText={
-                formData.testPlan ? "Select Metric" : "Select Test Plan first"
-              }
-              
-              disabled={!formData.testPlan}
-              onChange={(val) => handleChange("metric", val)}
-            />
-          </div>
+          
         </div>
 
         <div className="filters-row">
@@ -197,7 +288,7 @@ const handleChange = (key: string, value: any) => {
             <label>Max test cases</label>
             <CustomSelect
               options={maxTestCases}
-              defaultText="Select Max"
+              defaultText="10"
               onChange={(val) => handleChange("maxTestCases", val)}
             />
           </div>
@@ -205,18 +296,28 @@ const handleChange = (key: string, value: any) => {
           <div className="filter-item">
             <label>Domain</label>
             <CustomSelect
-              options={filters?.domains.map(p => p.filter_name) ?? []}
-              defaultText="Select Domain"
+              options={isTargetSelected ? domainOptions : []}
+              defaultText={
+                isTargetSelected
+                  ? "All Domains"
+                  : "Please select target first"
+              }
               onChange={(val) => handleChange("domain", val)}
+              disabled={!isTargetSelected}
             />
           </div>
 
           <div className="filter-item">
             <label>Language</label>
             <CustomSelect
-              options={languages}
-              defaultText="Select Language"
+              options={isTargetSelected ? languageOptions : []}
+              defaultText={
+                isTargetSelected
+                  ? "All Languages"
+                  : "Please select target first"
+              }
               onChange={(val) => handleChange("language", val)}
+              disabled={!isTargetSelected}
             />
           </div>
         </div>
@@ -225,7 +326,9 @@ const handleChange = (key: string, value: any) => {
           Start Run
         </button>
       </form>
-      {isRunning && <Loop isRunning={isRunning} totalTestCases={totalTestCases} stepsPerTestCase={4} stepNames={["Prepare", "Finding elements", "Execute", "Store"]}/>}       
+      {isRunning && <Loop isRunning={isRunning} totalTestCases={totalTestCases} stepsPerTestCase={4} 
+        stepNames={["Prepare", "Finding elements", "Execute", "Store"]} planName={formData.testPlan}   
+        metricName={formData.metric}/>}       
       
     </div>
   );

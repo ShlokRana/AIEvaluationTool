@@ -1,102 +1,171 @@
-.header {
+.header-container {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  flex-wrap: nowrap;
+  justify-content: center;
   width: 100%;
-  max-width: 100vw;
-  padding: 0 1rem;
-  box-sizing: border-box;
-  overflow: hidden;
+  padding: 16px 24px 0px;
+  margin-bottom: 2px;
+  margin-top: 4px; /* Further reduced from 8px to save more space */
+  background: transparent;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-.header h1 {
-  font-size: 24px;
-  font-weight: bold;
-  font-family: poppins, sans-serif;
-  white-space: nowrap; /* prevent breaking */
-  overflow: hidden;    /* truncate if too long */
-  text-overflow: ellipsis; /* add ... if truncated */
+.header-content img {
+  width: 50px;
+  height: 50px;
 }
 
-.header-buttons {
+.header-logo {
   display: flex;
+  align-items: center;
   gap: 8px;
   flex-shrink: 0;
 }
 
-.header-buttons button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-
-  padding: 8px 14px;
-  border: none;
+.logo-icon {
+  width: 32px;
+  height: 32px;
   border-radius: 8px;
-
-  font-size: 0.9rem;
-  font-weight: 600;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: white;
-
-  cursor: pointer;
-  white-space: nowrap;
-
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-  transition: 
-    transform 0.15s ease,
-    box-shadow 0.15s ease,
-    background-color 0.15s ease;
+  font-weight: 700;
+  font-size: 18px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
 }
 
+.logo-text {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e293b;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 16px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.page-title {
+  font-size: clamp(18px, 3vw, 28px) !important; /* Responsive font size */
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Responsive New Test Run button */
+.new-test-run-btn {
+  font-size: clamp(10px, 1.5vw, 14px) !important; /* Smaller responsive font */
+  padding: clamp(4px, 0.8vw, 8px) clamp(8px, 1.5vw, 16px) !important; /* Smaller responsive padding */
+  min-height: clamp(24px, 3.5vw, 36px) !important; /* Smaller responsive height */
+  min-width: clamp(80px, 12vw, 140px) !important; /* Smaller responsive width */
+  border-radius: clamp(4px, 0.8vw, 6px) !important; /* Smaller responsive radius */
+  white-space: nowrap;
+}
+
+.continue-btn {
+  border: 1.5px solid #e2e8f0 !important;
+  background: #ffffff !important;
+  color: #475569 !important;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.continue-btn:hover {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  color: #334155 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.new-test-run-btn {
+  
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+  border: none !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+  transition: all 0.2s ease;
+}
+
+.new-test-run-btn:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
+  transform: translateY(-1px);
+}
+
+@media screen and (max-width: 1024px) {
+  .header-content {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+  }
+
+  .header-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+}
 
 @media screen and (max-width: 768px) {
-  .header {
-    padding: 0 0.5rem;
+  .header-container {
+    padding: 12px 16px;
+    margin-bottom: 20px;
   }
-  .header h1 {
-    font-size: 18px;
-    margin-right: 8px;
+
+  .page-title {
+    font-size: 24px;
   }
-  .header-buttons {
-    gap: 2px;
+
+  .header-content {
+    justify-content: center;
   }
-  .header-buttons button {
-    padding: 6px 8px;
-    font-size: 0.8rem;
+
+  .header-actions {
+    flex-wrap: wrap;
+    gap: 8px;
   }
 }
 
 @media screen and (max-width: 480px) {
-  .header {
-    padding: 0 0.25rem;
+  .header-container {
+    padding: 8px 12px;
   }
-  .header h1 {
-    font-size: 16px;
-    margin-right: 4px;
-  }
-  .header-buttons {
-    gap: 1px;
-  }
-  .header-buttons button {
-    padding: 4px 6px;
-    font-size: 0.75rem;
-  }
-}
 
-@media screen and (max-width: 360px) {
-  .header {
-    padding: 0 0.125rem;
+  .logo-text {
+    font-size: 18px;
   }
-  .header h1 {
-    font-size: 14px;
-    margin-right: 2px;
+
+  .page-title {
+    font-size: 20px;
   }
-  .header-buttons {
-    gap: 0;
-  }
-  .header-buttons button {
-    padding: 3px 4px;
-    font-size: 0.7rem;
+
+  .header-content {
+    justify-content: center;
   }
 }

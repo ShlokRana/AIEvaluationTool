@@ -1,90 +1,101 @@
-import React from "react";
-import styles from "./runtimeline.module.css";
+import React, { Component } from 'react'
 
-/* ===== TYPES ===== */
-
-export interface TimelineEvent {
-  conversation_id: number;
-  metric_name: string;
-  plan_name: string;
-  prompt_ts: string | null;
-  response_ts: string | null;
+export default class PlanTimeline extends Component {
+  render() {
+    return (
+      <div>PlanTimeline</div>
+    )
+  }
 }
 
-interface Props {
-  planName: string;
-  events: TimelineEvent[];
-  hoveredMetric: string | null;
-}
 
-/* ===== COMPONENT ===== */
+// import React from "react";
+// import styles from "./runtimeline.module.css";
 
-const PlanTimeline: React.FC<Props> = ({
-  planName,
-  events,
-  hoveredMetric,
-}) => {
-  if (!events || events.length === 0) return null;
+// /* ===== TYPES ===== */
 
-  /* ---- TIME MATH (RESET PER PLAN) ---- */
+// export interface TimelineEvent {
+//   conversation_id: number;
+//   metric_name: string;
+//   plan_name: string;
+//   prompt_ts: string | null;
+//   response_ts: string | null;
+// }
 
-  const start = Math.min(
-    ...events.map(e => new Date(e.prompt_ts!).getTime())
-  );
+// interface Props {
+//   planName: string;
+//   events: TimelineEvent[];
+//   hoveredMetric: string | null;
+// }
 
-  const end = Math.max(
-    ...events.map(e => new Date(e.response_ts!).getTime())
-  );
+// /* ===== COMPONENT ===== */
 
-  const total = end - start || 1;
+// const PlanTimeline: React.FC<Props> = ({
+//   planName,
+//   events,
+//   hoveredMetric,
+// }) => {
+//   if (!events || events.length === 0) return null;
 
-  return (
-    <div className={styles.planBlock}>
-      {/* PLAN NAME */}
-      <div className={styles.planHeader}>{planName}</div>
+//   /* ---- TIME MATH (RESET PER PLAN) ---- */
 
-      {/* TIMELINE BAR */}
-      <div className={styles.timeline}>
-        {events.map(e => {
-          const prompt = new Date(e.prompt_ts!).getTime();
-          const response = new Date(e.response_ts!).getTime();
+//   const start = Math.min(
+//     ...events.map(e => new Date(e.prompt_ts!).getTime())
+//   );
 
-          const left = ((prompt - start) / total) * 100;
-          const width = ((response - prompt) / total) * 100;
+//   const end = Math.max(
+//     ...events.map(e => new Date(e.response_ts!).getTime())
+//   );
 
-          return (
-            <div
-              key={e.conversation_id}
-              className={styles.block}
-              style={{
-                left: `${left}%`,
-                width: `${width}%`,
-                opacity:
-                  hoveredMetric === null
-                    ? 0.35
-                    : hoveredMetric === e.metric_name
-                    ? 1
-                    : 0.25,
-              }}
-            />
-          );
-        })}
-      </div>
+//   const total = end - start || 1;
 
-      {/* SCALE */}
-      <div className={styles.scale}>
-        {[0, 0.25, 0.5, 0.75, 1].map((p, i) => (
-          <div
-            key={i}
-            className={styles.scaleItem}
-            style={{ left: `${p * 100}%` }}
-          >
-            {Math.round((total * p) / 1000)}s
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
+//   return (
+//     <div className={styles.planBlock}>
+//       {/* PLAN NAME */}
+//       <div className={styles.planHeader}>{planName}</div>
 
-export default PlanTimeline;
+//       {/* TIMELINE BAR */}
+//       <div className={styles.timeline}>
+//         {events.map(e => {
+//           const prompt = new Date(e.prompt_ts!).getTime();
+//           const response = new Date(e.response_ts!).getTime();
+
+//           const left = ((prompt - start) / total) * 100;
+//           const width = ((response - prompt) / total) * 100;
+
+//           return (
+//             <div
+//               key={e.conversation_id}
+//               className={styles.block}
+//               style={{
+//                 left: `${left}%`,
+//                 width: `${width}%`,
+//                 opacity:
+//                   hoveredMetric === null
+//                     ? 0.35
+//                     : hoveredMetric === e.metric_name
+//                     ? 1
+//                     : 0.25,
+//               }}
+//             />
+//           );
+//         })}
+//       </div>
+
+//       {/* SCALE */}
+//       <div className={styles.scale}>
+//         {[0, 0.25, 0.5, 0.75, 1].map((p, i) => (
+//           <div
+//             key={i}
+//             className={styles.scaleItem}
+//             style={{ left: `${p * 100}%` }}
+//           >
+//             {Math.round((total * p) / 1000)}s
+//           </div>
+//         ))}
+//       </div>
+//     </div>
+//   );
+// };
+
+// export default PlanTimeline;

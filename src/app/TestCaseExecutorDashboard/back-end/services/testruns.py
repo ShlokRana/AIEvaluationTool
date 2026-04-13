@@ -1,0 +1,755 @@
+import os
+import sys
+import re
+from typing import Optional,List,Literal
+from fastapi import HTTPException, BackgroundTasks
+from datetime import datetime
+import randomname
+
+from configuration.paths import (
+    ROOT_CONFIG_PATH as interface_manager_config,
+    wb,
+)
+import tempfile
+
+from lib.data import Run
+from schemas import TestRunFullResponse, TestRunSummaryResponse, TestRunDetailsResponse,TestRunResponse, NewTestRun, FilterResponse, EvaluationItemResponse, RunEvaluationSummaryResponse
+from fastapi.responses import FileResponse
+from tasks.test_run_tasks import execute_testcases
+from utils.port import ensure_interface_manager_port_running
+
+
+def start_run_service(db, data: NewTestRun, background_tasks: BackgroundTasks):
+    ensure_interface_manager_port_running(interface_manager_config)
+    if data.testPlan:
+        print("Starting new test run...")
+        target = data.target
+        target = re.sub(r"\s*\(.*?\)", "", target)
+
+        plan_name = data.testPlan
+        test_case_id = data.testCaseId
+        metric_name = data.metric
+        domain_name = data.domain if data.domain else None
+        lang_name = data.language if data.language else None
+        provided_run_name = data.runName.strip() if data.runName else None
+        if test_case_id and metric_name:
+            raise HTTPException(
+                status_code=400,
+                detail="Provide either 'testCaseId' or 'metric', not both.",
+            )
+        try:
+            max_test_cases = int(data.maxTestCases)
+            print(max_test_cases)
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=400,
+                detail="maxTestCases must be a valid number",
+            )
+
+        if provided_run_name:
+            run_name = provided_run_name
+        else:
+            run_name = randomname.generate("v/*", "adj/*", "n/*", "ip/*").replace(
+                "/", "-"
+            )
+        start_time = datetime.now().isoformat()
+        run = Run(target=target, run_name=run_name, start_ts=start_time)
+        run_id = db.add_or_update_testrun(run)
+        print(f"Starting run: {run_name} with run id {run_id}")
+
+        if plan_name is None:
+            print(f"No test plan found with name {plan_name}.")
+            return
+        print(f"Starting run with Test Plan: {plan_name}")
+
+        if test_case_id:
+            testcases = db.get_testcase_by_name(test_case_id)
+            if not testcases:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Test case ID '{test_case_id}' does not exist",
+                )
+
+            testcases = [testcases]
+            total_testcases = len(testcases)
+            print(f"Length of testcases: {len(testcases)}")
+            print(type(testcases))
+
+            run.status = "RUNNING"
+            db.add_or_update_testrun(run=run)
+            background_tasks.add_task(
+                execute_testcases,
+                run_name,
+                run_id,
+                plan_name,
+                target,
+                testcases,
+                run,
+            )
+
+        elif metric_name:
+            is_metric_in_plan = db.is_metric_in_testplan(
+                metric_name=metric_name, plan_name=plan_name
+            )
+            if not is_metric_in_plan:
+                return
+            testcases = db.get_testcases_by_metric(
+                metric_name=metric_name,
+                n=max_test_cases,
+                lang_names=lang_name,
+                domain_name=domain_name,
+            )
+            if not testcases:
+                print("No Test cases Found")
+                return
+            total_testcases = len(testcases)
+            run.status = "RUNNING"
+            db.add_or_update_testrun(run=run)
+            background_tasks.add_task(
+                execute_testcases,
+                run_name,
+                run_id,
+                plan_name,
+                target,
+                testcases,
+                run,
+            )
+
+        else:
+            testcases = db.get_testcases_by_testplan(
+                plan_name=plan_name,
+                n=max_test_cases,
+                lang_names=lang_name,
+                domain_name=domain_name,
+            )
+            if not testcases:
+                print("No Test cases Found")
+                return
+            total_testcases = len(testcases)
+            run.status = "RUNNING"
+            db.add_or_update_testrun(run=run)
+            background_tasks.add_task(
+                execute_testcases,
+                run_name,
+                run_id,
+                plan_name,
+                target,
+                testcases,
+                run,
+            )
+
+        return {
+            "status": "success",
+            "runId": run_id,
+            "runName": run_name,
+            "testPlanName": plan_name,
+            "metricName": metric_name,
+            "target": target,
+            "totalTestCases": total_testcases,
+        }
+
+    return "Test Plan ID is mandatory"
+
+
+def continue_run_service(db, run_name: str):
+    run = db.get_run_by_name(run_name)
+
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    details = db.get_run_details_by_run_id(run.run_id)
+    print(f"Run {run_name} has {run} details")
+    print(f"Found {len(details)} details for run {run_name}")
+    return {"run": run, "details": details}
+
+
+def continue_run_with_plan_service(db, data: NewTestRun, background_tasks: BackgroundTasks):
+    ensure_interface_manager_port_running(interface_manager_config)
+    run = db.get_run_by_name(data.runName)
+
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    if run.status == "COMPLETED":
+        run.status = "RUNNING"
+        run.end_ts = None
+        db.add_or_update_testrun(run=run, override=True)
+
+    run_id = run.run_id
+    run_name = run.run_name
+
+    plan_name = data.testPlan
+    metric_name = data.metric
+    testcase_id = data.testCaseId
+    if testcase_id and metric_name:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide either 'testCaseId' or 'metric', not both.",
+        )
+
+    if not plan_name:
+        raise HTTPException(status_code=400, detail="Test Plan is required")
+
+    try:
+        max_test_cases = int(data.maxTestCases)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid maxTestCases")
+
+    if metric_name:
+        testcases = db.get_testcases_by_metric(
+            metric_name=metric_name,
+            n=max_test_cases,
+            lang_names=data.language,
+            domain_name=data.domain,
+        )
+    elif testcase_id:
+        testcases = db.get_testcase_by_name(testcase_id)
+        if not testcases:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Test case ID '{testcase_id}' does not exist",
+            )
+        testcases = [testcases]
+    else:
+        testcases = db.get_testcases_by_testplan(
+            plan_name=plan_name,
+            n=max_test_cases,
+            lang_names=data.language,
+            domain_name=data.domain,
+        )
+
+    if not testcases:
+        raise HTTPException(status_code=400, detail="No testcases found")
+
+    background_tasks.add_task(
+        execute_testcases,
+        run_name,
+        run_id,
+        plan_name,
+        run.target,
+        testcases,
+        run,
+    )
+
+    return {
+        "status": "continued",
+        "runId": run_id,
+        "runName": run_name,
+        "addedPlan": plan_name,
+        "plan_name":plan_name,
+        "metric_name":metric_name,
+        "totalTestCases": len(testcases),
+    }
+
+def get_test_run_service(db, run_name: str, metric: Optional[str] = None, status: Optional[str] = None):
+    try:
+        
+
+        run = db.get_run_by_name(run_name)
+        if not run:
+            raise HTTPException(status_code=404, detail="Run not found")
+
+        domain_name = None
+        if getattr(run, "target_id", None):
+            target = db.get_target_by_id(run.target_id)
+            if target:
+                domain_name = getattr(target, "target_domain", None)
+
+        summary = TestRunSummaryResponse(
+            run_id=run.run_id,
+            run_name=run.run_name,
+            target=run.target,
+            domain=domain_name,
+            status=run.status,
+            start_ts=run.start_ts,
+            end_ts=run.end_ts
+        )
+
+        details = db.get_all_run_details_by_run_name(run_name)
+
+        details_response = []
+        if metric:
+            details = [d for d in details if d.metric_name == metric]
+
+        if status:
+            details = [d for d in details if d.status == status]
+
+        for d in details:
+            score = None
+            if d.conversation_id:
+                conv = db.get_conversation_by_id(d.conversation_id)
+                if conv and conv.evaluation_score is not None:
+                    score = float(conv.evaluation_score)
+                if conv:
+                    evaluation_reason = conv.evaluation_reason or ""  # ← add this
+            details_response.append(
+                TestRunDetailsResponse(
+                    run_name=d.run_name,
+                    testcase_name=d.testcase_name,
+                    metric_name=d.metric_name,
+                    plan_name=d.plan_name,
+                    conversation_id=d.conversation_id,
+                    status=d.status,
+                    detail_id=d.detail_id,
+                    score=score,
+                    evaluation_reason=evaluation_reason  
+                )
+            )
+
+        return TestRunFullResponse(
+            summary=summary,
+            details=details_response
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+def get_all_test_runs_service(
+    db,
+    domain: Optional[str] = None,
+    target: Optional[str] = None,
+    status: Optional[str] = None,
+    sort_by: Literal["end_ts", "start_ts"] = "end_ts",
+    order: Literal["asc", "desc"] = "desc",
+) -> List[TestRunResponse]:
+    try:
+        runs = db.get_all_runs(domain=domain, target=target, status=status)
+            
+        response: List[TestRunResponse] = []
+
+        for r in runs:
+            domain_name = None
+
+            target_id = (
+                r.kwargs.get("target_id")
+                if hasattr(r, "kwargs") and r.kwargs
+                else None
+            )
+
+            if target_id:
+                target_obj = db.get_target_by_id(target_id)
+                if target_obj:
+                    domain_name = target_obj.target_domain
+            duration_ms = None
+            timeline = db.get_run_timeline(r.run_name) or []
+            
+            if timeline:
+                events_by_plan = {}
+                total_seconds = 0
+
+                for e in timeline:
+                    events_by_plan.setdefault(e.plan_name, []).append(e)
+
+                for plan_events in events_by_plan.values():
+                    start_times = [
+                        datetime.fromisoformat(e.prompt_ts).timestamp()
+                        for e in plan_events if e.prompt_ts
+                    ]
+
+                    end_times = [
+                        datetime.fromisoformat(e.response_ts).timestamp()
+                        for e in plan_events if e.response_ts
+                    ]
+
+                    if start_times and end_times:
+                        total_seconds += (max(end_times) - min(start_times))
+
+                duration_ms = int(total_seconds * 1000)    
+
+            scores = []
+            for e in timeline:
+                if e.evaluation_score is not None:
+                    scores.append(float(e.evaluation_score))
+
+            average_score = (
+                round(sum(scores) / len(scores), 4)
+                if scores
+                else None
+            )
+            evaluation_ts = max(
+                (e.evaluation_ts for e in timeline if e.evaluation_ts),
+                default=None
+            )    
+            # print("evaluation time stamp", evaluation_ts)   
+            response.append(
+                TestRunResponse(
+                    run_id=r.run_id,
+                    run_name=r.run_name,
+                    target=r.target,
+                    status=r.status,
+                    start_ts=r.start_ts,
+                    end_ts=r.end_ts,
+                    domain=domain_name,
+                    duration_ms=duration_ms,
+                    average_score=average_score,
+                    evaluation_ts=evaluation_ts
+                )
+            )
+
+        # 🔹 Sorting
+        reverse = order == "desc"
+        response.sort(
+            key=lambda x: getattr(x, sort_by) or "",
+            reverse=reverse
+        )
+
+        return response
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))   
+    
+def get_metrics_by_plan_service(db, plan_name: str):
+    metrics = db.get_metrics_by_testplan(plan_name)
+    return [FilterResponse(filter_name=m) for m in metrics]
+
+def get_test_run_timeline_service(db,run_name: str):
+    timeline = db.get_run_timeline(run_name)
+    if not timeline:
+        raise HTTPException(status_code=404, detail="No timeline found")
+    return timeline
+
+
+def get_run_evaluation_summary_service(db, run_name: str):
+    run = db.get_run_by_name(run_name)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    domain_name = None
+    if getattr(run, "target_id", None):
+        target = db.get_target_by_id(run.target_id)
+        if target:
+            domain_name = getattr(target, "target_domain", None)
+
+    run_summary = TestRunSummaryResponse(
+        run_id=run.run_id,
+        run_name=run.run_name,
+        target=run.target,
+        domain=domain_name,
+        status=run.status,
+        start_ts=run.start_ts,
+        end_ts=run.end_ts
+    )
+
+    details = db.get_all_run_details_by_run_name(run_name)
+    evaluations = []
+
+    for d in details:
+        conv = db.get_conversation_by_id(d.conversation_id)
+        print(conv.evaluation_score)
+        if not conv:
+            continue
+        evaluations.append(
+            EvaluationItemResponse(
+                detail_id=d.detail_id,
+                testcase=conv.testcase,
+                agent_response=conv.agent_response,
+                evaluation_score=conv.evaluation_score,
+                evaluation_reason=conv.evaluation_reason,
+                evaluation_ts=conv.evaluation_ts
+            )
+        )
+
+    return RunEvaluationSummaryResponse(run=run_summary, evaluations=evaluations)
+
+
+def download_evaluation_report_service(db, run_name: str):
+    run = db.get_run_by_name(run_name)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    details = db.get_all_run_details_by_run_name(run_name)
+    plan_name = details[0].plan_name if details else None
+
+    conversation_cache = {}
+    testcase_prompt_cache = {}
+    for d in details:
+        if d.conversation_id not in conversation_cache:
+            conversation_cache[d.conversation_id] = db.get_conversation_by_id(d.conversation_id)
+
+    ws_summary = wb["Run_Summary"]
+    testcases = set()
+    total_metrics = len(details)
+
+    for conv in conversation_cache.values():
+        if conv and getattr(conv, "testcase", None):
+            testcases.add(conv.testcase)
+
+    ws_summary["B1"] = run.run_name
+    ws_summary["B2"] = plan_name
+    ws_summary["B3"] = run.status
+    ws_summary["B4"] = len(testcases)
+    ws_summary["B5"] = total_metrics
+
+    ws_details = wb["Evaluation_Details"]
+
+    for d in details:
+        conv = conversation_cache.get(d.conversation_id)
+        if not conv:
+            continue
+
+        metric_name = (
+            getattr(d, "metric", None)
+            or getattr(d, "metric_name", None)
+            or getattr(conv, "metric", None)
+            or getattr(conv, "metric_name", None)
+        )
+
+        testcase_name = getattr(conv, "testcase", None)
+
+        if testcase_name not in testcase_prompt_cache:
+            testcase = db.get_testcase_by_name(testcase_name)
+            if not testcase or not getattr(testcase, "prompt", None):
+                testcase_prompt_cache[testcase_name] = {"user_prompt": None, "system_prompt": None}
+            else:
+                testcase_prompt_cache[testcase_name] = {
+                    "user_prompt": getattr(testcase.prompt, "user_prompt", None),
+                    "system_prompt": getattr(testcase.prompt, "system_prompt", None),
+                }
+
+        prompts = testcase_prompt_cache[testcase_name]
+        ws_details.append([
+            d.detail_id,
+            getattr(conv, "testcase", None),
+            metric_name,
+            getattr(conv, "evaluation_score", None),
+            getattr(conv, "evaluation_reason", None),
+            getattr(conv, "evaluation_ts", None),
+            getattr(conv, "agent_response", None),
+            prompts["user_prompt"],
+            prompts["system_prompt"],
+        ])
+
+    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
+    wb.save(tmp_file.name)
+    tmp_file.close()
+
+    return FileResponse(
+        tmp_file.name,
+        filename=f"{run_name}_evaluation_report.xlsx",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+def get_test_run_summary_service(db, run_name: str):
+    run = db.get_run_by_name(run_name)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    domain_name = None
+    if getattr(run, "target_id", None):
+        target = db.get_target_by_id(run.target_id)
+        if target:
+            domain_name = getattr(target, "target_domain", None)
+
+    return TestRunSummaryResponse(
+        run_id=run.run_id,
+        run_name=run.run_name,
+        target=run.target,
+        domain=domain_name,
+        status=run.status,
+        start_ts=run.start_ts,
+        end_ts=run.end_ts
+    )
+
+# def start_run_service(db, data: NewTestRun, background_tasks: BackgroundTasks):    
+#     ensure_interface_manager_running(interface_manager_config)
+#     if data.testPlan:
+#         ### Initialising the form variables
+#         print("Starting new test run...")
+#         target = data.target
+#         target = re.sub(r"\s*\(.*?\)", "", target)
+
+        
+#         plan_name = data.testPlan
+#         test_case_id = data.testCaseId
+#         metric_name = data.metric 
+#         domain_name = data.domain if data.domain else None
+#         lang_name = data.language if data.language else None
+#         provided_run_name = data.runName.strip() if data.runName else None
+#         if test_case_id and metric_name:
+#             raise HTTPException(
+#                 status_code=400,
+#                 detail="Provide either 'testCaseId' or 'metric', not both."
+#             )
+#         try:
+#             max_test_cases = int(data.maxTestCases)
+#             print(max_test_cases)
+#         except (TypeError, ValueError):
+#             raise HTTPException(
+#                 status_code=400,
+#                 detail="maxTestCases must be a valid number"
+#             )
+#         ## Create a random name for the run and generating run id
+
+#         if provided_run_name:
+#             run_name = provided_run_name
+#         else:
+#             run_name = randomname.generate('v/*','adj/*','n/*','ip/*')
+#         start_time = datetime.now().isoformat()
+#         run = Run(target=target, run_name=run_name, start_ts=start_time)
+#         run_id = db.add_or_update_testrun(run)
+#         print(f"Starting run: {run_name} with run id {run_id}")
+
+        
+#         # plan_name = db.get_testplan_name(plan_id=test_plan_id)
+        
+#         if plan_name is None:
+#             print(f"No test plan found with name {plan_name}.")
+#             return
+#         print(f"Starting run with Test Plan: {plan_name}")
+
+#         if test_case_id:
+#             testcases = db.get_testcase_by_name(test_case_id)
+#             if not testcases:
+#                 raise HTTPException(
+#                     status_code=500,
+#                     detail=f"Test case ID '{test_case_id}' does not exist"
+#                 )
+#             # is_valid = db.is_testcase_in_testplan(
+#             #     test_case_id=test_case_id,
+#             #     plan_name=plan_name
+#             # )
+
+#             # if not is_valid:
+#             #     raise HTTPException(
+#             #         status_code=400,
+#             #         detail=f"Test case '{test_case_id}' is not mapped to test plan '{plan_name}'"
+#             #     )
+#             testcases = [testcases]
+#             total_testcases = len(testcases)
+#             print(f"Length of testcases: {len(testcases)}")
+#             print(type(testcases))
+            
+#             run.status = "RUNNING"
+#             db.add_or_update_testrun(run=run)
+            
+            
+#             background_tasks.add_task(
+#                 execute_testcases,
+#                 run_name,
+#                 run_id,
+#                 plan_name,
+#                 target,
+                
+#                 testcases,
+#                 run
+#             )
+
+#         elif metric_name:
+#             # metric_name = db.get_metric_name(metric_id=metric_id)  
+#             is_metric_in_plan = db.is_metric_in_testplan(metric_name=metric_name, plan_name=plan_name)  
+#             if not is_metric_in_plan:
+#                 return
+#             testcases = db.get_testcases_by_metric(
+#                 metric_name=metric_name,
+#                 n=max_test_cases,
+#                 lang_names=lang_name,
+#                 domain_name=domain_name
+#             ) 
+#             if not testcases:
+#                 print("No Test cases Found")
+#                 return
+#             #     ## Get the metric from the provided ID 
+#             total_testcases = len(testcases)
+#             # metric = db.get_metric_by_id(metric_id=metric_id)
+#             # if metric is None:
+#             #     print("No Metric Found")
+#             #     return
+#             run.status = "RUNNING"
+#             db.add_or_update_testrun(run=run)
+#             background_tasks.add_task(
+#                 execute_testcases,
+#                 run_name,
+#                 run_id,
+#                 plan_name,
+#                 target,
+                
+#                 testcases,
+#                 run
+#             )
+#             # agent_name = target
+#             # application_name = target
+#             # application_url = "https://web.whatsapp.com"
+#             # application_type = "WHATSAPP_WEB"
+#             # print("started syncing")
+#             # client = InterfaceManagerClient(base_url="http://localhost:8000" ,application_type=application_type, agent_name=agent_name)
+#             # client.sync_config({
+#             #         "application_name": application_name,
+#             #         "application_type": application_type,
+#             #         "agent_name": agent_name,
+#             #         "application_url": application_url
+#             #     })
+#             # client.apply_server_config()
+#             # for testcase in testcases:
+#             #     rundetail = RunDetail(run_name=run_name, plan_name=plan_name, metric_name=testcase.metric, testcase_name=testcase.name)
+#             #     rundetail_id = db.add_or_update_testrun_detail(rundetail)
+#             #     run_status = db.get_status_by_run_detail_id(run_detail_id=rundetail_id)
+#             #     if run_status is not None and run_status == "COMPLETED":
+#             #         print(f"Run detail for testcase {testcase.name} (ID: {testcase.testcase_id}) is already completed. Skipping execution.")
+#             #         continue
+#             #     message_to_agent = testcase.prompt.user_prompt if testcase.prompt.user_prompt else ""
+#             #     if testcase.prompt.system_prompt:
+#             #         message_to_agent = testcase.prompt.system_prompt + " " + message_to_agent
+
+#             #     conv = Conversation(target=target, 
+#             #                         run_detail_id=rundetail_id, 
+#             #                         testcase=testcase.name)
+#             #     conv_id = db.add_or_update_conversation(conversation=conv)
+#             #     print(f"A new conversation is created with ID: {conv_id}")
+#             #     rundetail.status = "RUNNING"
+#             #     db.add_or_update_testrun_detail(rundetail)
+#             #     # print("completed")
+                
+#             #     conv.prompt_ts = datetime.now().isoformat()
+#             #     db.add_or_update_conversation(conversation=conv)
+#             #     print("prompt time added")    
+#             #     response_from_agent = client.chat(chat_id = testcase.testcase_id, prompt_list=[message_to_agent])
+#             #     agent_response = response_from_agent.json().get("response", "")
+#             #     if len(agent_response) == 0 or agent_response[0]['response'] == "Chat not found":
+#             #         print(f"No response received from the agent for test case {testcase.testcase_id}.")
+#             #         rundetail.status = "FAILED"
+#             #         db.add_or_update_testrun_detail(rundetail)
+#             #         continue
+#             #     conv.response_ts = datetime.now().isoformat()
+#             #     print("Response time added") 
+#             #     conv.agent_response = agent_response[0]['response']
+#             #     db.add_or_update_conversation(conversation=conv)
+#             #     rundetail.status = "COMPLETED"
+#             #     db.add_or_update_testrun_detail(rundetail)
+#             #     print("completed Response time")
+            
+#         # 🔹 Get testcases count (NO execution here)
+
+#         else:
+#             testcases = db.get_testcases_by_testplan(plan_name=plan_name, n=max_test_cases, lang_names=lang_name, domain_name=domain_name)
+#             if not testcases:
+#                 print("No Test cases Found")
+#                 return
+#             total_testcases = len(testcases)   
+#             run.status = "RUNNING"
+#             db.add_or_update_testrun(run=run)
+#             background_tasks.add_task(
+#                 execute_testcases,
+#                 run_name,
+#                 run_id,
+#                 plan_name,
+#                 target,
+                
+#                 testcases,
+#                 run
+#             )
+        
+#         return {
+#             "status": "success",
+#             "runId": run_id,
+#             "runName": run_name,
+#             "testPlanName": plan_name,
+#             "metricName": metric_name,
+#             "target": target,
+#             "totalTestCases": total_testcases,
+            
+#         }
+        
+#     else:
+#         return("Test Plan ID is mandatory")

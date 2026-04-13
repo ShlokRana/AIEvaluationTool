@@ -31,15 +31,22 @@ def _get_username_from_token(authorization: Optional[str] = Header(None)) -> Opt
     except ValueError:
         return None
 
-    try:
-        payload = jwt.decode(
-            token,
-            settings.SECRET_KEY,
-            algorithms=[settings.ALGORITHM],
-        )
-        return payload.get("user_name")
-    except JWTError:
-        return None
+    candidate_keys = [
+        settings.SECRET_KEY,
+        "@cerai",
+    ]
+
+    for key in dict.fromkeys(candidate_keys):
+        try:
+            payload = jwt.decode(
+                token,
+                key,
+                algorithms=[settings.ALGORITHM],
+            )
+            return payload.get("user_name")
+        except JWTError:
+            continue
+    return None
 
 
 @language_router.get(

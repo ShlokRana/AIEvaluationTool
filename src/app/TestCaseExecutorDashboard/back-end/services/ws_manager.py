@@ -15,4 +15,7 @@ class WSManager:
         for ws in self.connections:
             await ws.send_json(message)
 
+    def is_empty(self) -> bool:
+        return len(self.connections) == 0        
+
 ws_manager = WSManager()            

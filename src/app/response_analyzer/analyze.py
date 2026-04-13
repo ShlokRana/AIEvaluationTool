@@ -184,7 +184,7 @@ def main():
             logger.warning(f"No run details with empty evaluation_reason found for run '{run.run_name}'. Nothing to analyze.")
             return
     
-    print(run_details)
+    
     # let's group the all the run_details by strategy for computational convenience.
     grouped_run_details = {}
     for detail in run_details:

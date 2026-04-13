@@ -258,10 +258,10 @@ class OllamaConnect:
                         final_rsn += f"\n {i+1}. {r}"
                 return final_rsn
             else:
-                return "Could not get a proper reasoning for the score."
+                return ""
         except Exception as e:
             logger.error(f"Error while getting reason for the score : {e}")
-            return "Could not get a proper reasoning for the score."
+            return ""
         
     @staticmethod
     def get_metric_summary(

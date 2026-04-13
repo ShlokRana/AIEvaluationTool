@@ -4,6 +4,7 @@ from typing import Optional, List
 
 class FilterResponse(BaseModel):
     filter_name: str
+    extra_info: Optional[str] = None   # <-- new optional field
 
 
 class AllFiltersResponse(BaseModel):

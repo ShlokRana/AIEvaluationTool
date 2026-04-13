@@ -100,6 +100,7 @@ class DriverManager:
         try:
             if selenium_mode == "remote":
                 logger.info(f"Using Remote WebDriver at {remote_url}")
+                # opts.add_argument("--user-data-dir=/home/seluser/chrome-data")
                 self.driver = webdriver.Remote(
                     command_executor=remote_url,
                     options=opts
@@ -343,7 +344,22 @@ def login_app(driver: webdriver.Chrome, app_name: str) -> bool:
         logout_cfg = app_cfg.get("LogoutPage")
         cred_cfg = load_creds()["applications"].get(app_name.lower(), {})
 
-        time.sleep(5)
+        qr_cfg = app_cfg.get("ChatPage", {}).get("scan_qr_code_element")
+        print(qr_cfg)
+        print(app_name.lower())
+
+        if app_name.lower() == "whatsapp" or app_name.lower() == "whatsapp web" or app_name.lower() == "whatsapp_web":
+            wait_for_login = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.XPATH, qr_cfg))
+            )
+            print(wait_for_login)
+            if wait_for_login:
+                time.sleep(60)  # wait for QR code to load
+                logger.info("Waiting for WhatsApp Web login via QR code.")
+                return True
+            else:
+                logger.info(f"{app_name} has no LoginPage config → skipping login")
+                return True
 
         if not login_cfg:
             logger.info(f"{app_name} has no LoginPage config → skipping login")

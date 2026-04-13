@@ -1,10 +1,39 @@
 from typing import List
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from fastapi import HTTPException
 
 from models.user import Users, ActivityLog
 from schemas import UserCreate, UserActivityCreate, UpdateUser
 from config import helpers
+
+_OP_ALIASES = {
+    "created": "create",
+    "updated": "update",
+    "deleted": "delete",
+}
+
+
+def _normalize_operation(op: str) -> str:
+    value = (op or "").strip().lower()
+    return _OP_ALIASES.get(value, value)
+
+
+def _normalize_legacy_activity_operations(db: Session) -> None:
+    updates = [
+        ("created", "create"),
+        ("updated", "update"),
+        ("deleted", "delete"),
+    ]
+    changed = False
+    for legacy, current in updates:
+        result = db.execute(
+            text('UPDATE "ActivityLog" SET operation = :current WHERE lower(operation) = :legacy'),
+            {"current": current, "legacy": legacy},
+        )
+        changed = changed or (result.rowcount or 0) > 0
+    if changed:
+        db.commit()
 
 
 def list_users(db: Session) -> List[Users]:
@@ -56,6 +85,7 @@ def update_user(db:Session, user_id: str, payload: UpdateUser) -> Users:
 
 
 def list_user_activity(db: Session, username: str) -> List[ActivityLog]:
+    _normalize_legacy_activity_operations(db)
     return (
         db.query(ActivityLog)
         .filter(ActivityLog.user_name == username)
@@ -76,7 +106,7 @@ def add_user_activity(db: Session, username: str, payload: UserActivityCreate) -
         entity_type=payload.entity_type,
         entity_id=payload.entity_id,
         note=payload.note,
-        operation=payload.operation.lower(),
+        operation=_normalize_operation(payload.operation),
     )
     db.add(activity)
     db.commit()
@@ -104,7 +134,7 @@ def add_activity_log(
         entity_type=entity_type,
         entity_id=entity_id,
         note=note,
-        operation=operation.lower(),
+        operation=_normalize_operation(operation),
     )
     db.add(activity)
     db.commit()
@@ -114,6 +144,7 @@ def add_activity_log(
 
 def list_activity_by_entity_type(db: Session, entity_type: str) -> List[ActivityLog]:
     """Get activity logs filtered by entity type."""
+    _normalize_legacy_activity_operations(db)
     return (
         db.query(ActivityLog)
         .filter(ActivityLog.entity_type == entity_type)

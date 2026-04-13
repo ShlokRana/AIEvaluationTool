@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
-
+import { useNavigate } from "react-router-dom";
+import {WS_BASE_URL,} from "../../../config/api"
 interface LoopProps {
   isRunning: boolean;
   totalTestCases: number;
   stepsPerTestCase: number; // 👈 how many steps each TC has
   stepNames?: string[]; // 👈 Names for each step
+  planName?: string;     // 👈 add
+  metricName?: string;   // 👈 add
+  
 }
 
 type StepStatus = "PENDING" | "RUNNING" | "DONE" | "FAILED";
@@ -14,13 +18,16 @@ const Loop: React.FC<LoopProps> = ({
   totalTestCases,
   stepsPerTestCase,
   stepNames: propStepNames,
+  planName,
+  metricName
 }) => {
   const [currentTestCase, setCurrentTestCase] = useState(0);
+  const navigate = useNavigate();
   // Track status for each step individually
   const [stepStatuses, setStepStatuses] = useState<StepStatus[]>(
     Array(stepsPerTestCase).fill("PENDING")
   );
-  
+  const [runCompleted, setRunCompleted] = useState(false);
   // Default step names if not provided
   const stepLabels = Array.from({ length: stepsPerTestCase }, (_, i) => 
     i === 0 ? 'Setup' : 
@@ -44,7 +51,7 @@ const Loop: React.FC<LoopProps> = ({
   useEffect(() => {
     if (!isRunning) return;
 
-    const ws = new WebSocket("ws://localhost:7000/ws/test-run");
+    const ws = new WebSocket(`${WS_BASE_URL}/ws/test-run`);
 
     ws.onopen = () => {
       console.log("✅ WebSocket connected");
@@ -79,9 +86,11 @@ const Loop: React.FC<LoopProps> = ({
 
         case "TESTCASE_FINISHED":
           setStepStatuses(Array(stepsPerTestCase).fill("PENDING"));
+          
           setCurrentTestCase(data.current + 1);
           break;
         case "RUN_FINISHED":
+          setRunCompleted(true);
           console.log("🏁 Run completed");
           ws.close();
           break;
@@ -147,7 +156,7 @@ const Loop: React.FC<LoopProps> = ({
           borderRadius: '4px',
           fontWeight: 500
         }}>
-          Responsible_AI • Inclusivity
+          {planName} {metricName && `• ${metricName}`}
         </div>
       </div>
       
@@ -257,6 +266,46 @@ const Loop: React.FC<LoopProps> = ({
           ))}
         </div>
       </div>
+      {runCompleted && (
+        <div
+          style={{
+            marginTop: "24px",
+            padding: "16px",
+            background: "#ECFDF5",
+            border: "1px solid #10B981",
+            borderRadius: "10px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "12px",
+          }}
+        >
+          <span
+            style={{
+              color: "#065F46",
+              fontWeight: 600,
+              fontSize: "14px",
+            }}
+          >
+            ✅ Test run completed successfully
+          </span>
+
+          <button
+            onClick={() => navigate("/")}
+            style={{
+              padding: "8px 14px",
+              borderRadius: "6px",
+              border: "none",
+              background: "#10B981",
+              color: "#FFFFFF",
+              fontWeight: 500,
+              cursor: "pointer",
+            }}
+          >
+            View Test Runs
+          </button>
+        </div>
+      )}
     </div>
   );
 };

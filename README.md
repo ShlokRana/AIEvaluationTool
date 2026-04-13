@@ -316,6 +316,90 @@ AIEvaluationTool/
 
 ---
 
+## 2.1 **Authentication System**
+
+AIEvaluationTool implements a centralized authentication system with JWT-based access control.
+
+### Architecture
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   TDMS Frontend │    │   Auth Service  │    │ TestCaseExec    │
+│                 │    │   (FastAPI)     │    │   Frontend      │
+│ - Login Page    │───▶│ - /login        │◀───│ - Login Page    │
+│ - JWT Storage   │    │ - /refresh      │    │ - JWT Storage   │
+└─────────────────┘    │ - /logout       │    └─────────────────┘
+                       │                 │
+                       └─────────────────┘
+                                │
+                                ▼
+                       ┌─────────────────┐
+                       │   TDMS Backend  │
+                       │   (FastAPI)     │
+                       │                 │
+                       │ - JWT Validation│
+                       │ - Role-based    │
+                       │   Access Control│
+                       └─────────────────┘
+                                │
+                                ▼
+                       ┌─────────────────┐
+                       │ TestCaseExec    │
+                       │   Backend       │
+                       │   (FastAPI)     │
+                       │                 │
+                       │ - JWT Validation│
+                       │ - Role-based    │
+                       │   Access Control│
+                       └─────────────────┘
+```
+
+### Features
+
+- **Centralized Auth Service**: Single authentication service for all applications
+- **JWT Tokens**: Access and refresh token support
+- **Role-Based Access**: Admin, Manager, Curator, Viewer roles
+- **HTTP-Only Cookies**: Secure token storage (configurable)
+- **Token Refresh**: Automatic token renewal
+
+### Default Users
+
+The system comes with pre-seeded users:
+
+- **admin** / admin123 (Admin role)
+- **manager** / manager123 (Manager role)
+- **curator** / curator123 (Curator role)
+- **viewer** / viewer123 (Viewer role)
+
+### Environment Variables
+
+Set these environment variables for the auth service:
+
+```bash
+# JWT Secrets
+AUTH_SECRET_KEY=your-super-secret-key-change-this-in-production
+AUTH_REFRESH_SECRET_KEY=your-refresh-secret-key-change-this-in-production
+
+# Database
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=your-db-password
+DB_NAME=aievaluation
+```
+
+### Running the Auth Service
+
+```bash
+cd src/app/auth_service
+pip install -r requirements.txt
+./run.sh
+```
+
+The auth service runs on port 8001.
+
+---
+
 ## 3. **Installation & Setup**
 
 ### 3.1 **Prerequisites and System Requirements**

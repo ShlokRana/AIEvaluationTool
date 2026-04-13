@@ -4,7 +4,7 @@ from schemas import User, Domain, Language
 from schemas import TargetIds, TargetCreate, TargetUpdate
 
 from database.fastapi_deps import _get_db
-from database.database import get_current_user
+from configuration.database import get_current_user
 from models import user as user_model
 from utils.activity_logger import log_activity
 from jose import jwt, JWTError

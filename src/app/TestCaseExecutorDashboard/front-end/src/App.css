@@ -1,22 +1,108 @@
-.App{
-  background-color: #f5f7fa;
-  height: 100vh;
-  margin: 0 !important;
-  padding: 0 !important;
-}
-html, body {
+html,
+body,
+#root {
   margin: 0;
   padding: 0;
-  
-  background-color: #f5f7fa;
+  min-height: 100vh;
+  background-color: #eceff7;
+  overflow-x: hidden; /* Prevent horizontal scroll on page level */
 }
+
 .app-container {
   display: flex;
-  flex-direction: column;
+  min-height: 100vh;
+  background-color: #eceff7;
+}
+
+.sidebar {
+  width: 224px;
+  min-width: 224px;
+  height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  background-color: #5252c2;
+  z-index: 20;
+}
+
+.sidebar > aside {
+  width: 224px;
   min-height: 100vh;
 }
+
 .main-content {
   flex: 1;
+  margin-left: 224px;
   padding: 20px;
-  background-color: #f8fafc; /* Light background color */
+  background-color: #eceff7;
+  min-height: 100vh;
+  overflow-y: auto; /* Ensure vertical scroll when content overflows */
+  overflow-x: hidden; /* Prevent horizontal scroll */
+}
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 16px;
+}
+
+.login-form {
+  width: 100%;
+  max-width: 420px;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 32px;
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+}
+
+.login-form h2 {
+  margin: 0 0 20px;
+  font-size: 1.5rem;
+  text-align: center;
+}
+
+.login-form .form-row {
+  margin-bottom: 16px;
+}
+
+.login-form label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.login-form input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.login-form .login-button {
+  width: 100%;
+  padding: 12px;
+  background: #5252c2;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.login-form .login-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.login-error {
+  margin: 10px 0;
+  padding: 10px 12px;
+  background: #fde2e2;
+  color: #a61919;
+  border-radius: 8px;
+  font-size: 0.95rem;
 }
