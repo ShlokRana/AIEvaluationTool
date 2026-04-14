@@ -73,7 +73,14 @@ def handle_api_chat(
 
         return {
             "response": [
-                {"response": text}
+                {
+                    "chat_id": payload.get("chat_id"),
+                    "prompt": prompt,
+                    "response": {
+                        "type": "text",
+                        "content": text
+                    }
+                }
             ]
         }
 
