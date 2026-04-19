@@ -482,8 +482,6 @@ def main():
                         "agent_name": agent_name,
                         "application_url": application_url,
                         "selenium_mode": selenium_mode
-                        "application_url": application_url,
-                        "selenium_mode": selenium_mode
                     })
                     client.apply_server_config()
 
@@ -621,8 +619,6 @@ def main():
                     "application_name": application_name,
                     "application_type": application_type,
                     "agent_name": agent_name,
-                    "application_url": application_url,
-                    "selenium_mode": selenium_mode
                     "application_url": application_url,
                     "selenium_mode": selenium_mode
                 })
@@ -773,8 +769,6 @@ def main():
                     "application_name": application_name,
                     "application_type": application_type,
                     "agent_name": agent_name,
-                    "application_url": application_url,
-                    "selenium_mode": selenium_mode
                     "application_url": application_url,
                     "selenium_mode": selenium_mode
                 })
