@@ -23,16 +23,11 @@ services:
     container_name: aiet-selenium
     restart: unless-stopped
     shm_size: 2gb
-    ports:
-      - "7900:7900" # NoVNC live browser view
-      # - "4444:4444" # Selenium WebDriver endpoint
     environment:
       SE_VNC_NO_PASSWORD: "1"
     expose:
       - "4444"
       - "7900"
-    volumes:
-      - ./chrome-data:/home/seluser/chrome-data
 
   interface-manager:
     build:
@@ -41,6 +36,8 @@ services:
       target: interface-manager
     container_name: aiet-interface-manager
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy
@@ -68,15 +65,13 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "7500:7500"
     expose:
       - "7500"
     env_file:
       - .env
     environment:
-      TCE_APP_URL: ${TCE_APP_URL:-http://localhost:3000}
-      TDMS_APP_URL: ${TDMS_APP_URL:-http://localhost:8080/dashboard}
+      TCE_APP_URL: ${TCE_APP_URL:-/}
+      TDMS_APP_URL: ${TDMS_APP_URL:-/tdms/dashboard}
       DB_HOST: ${DB_HOST:-db}
       DB_PORT: ${DB_PORT:-3306}
     healthcheck:
@@ -95,8 +90,9 @@ services:
     depends_on:
       interface-manager:
         condition: service_healthy
-    ports:
-      - "7000:7000"
+      sarvam-ai:
+        condition: service_started
+        required: false
     expose:
       - "7000"
     env_file:
@@ -112,6 +108,32 @@ services:
       timeout: 5s
       retries: 5
 
+  sarvam-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile.app-backend
+      target: sarvam-ai
+    container_name: aiet-sarvam-ai
+    restart: unless-stopped
+    profiles: ["sarvam"]
+    expose:
+      - "16000"
+    environment:
+      - HF_HOME=/models
+      - HUGGINGFACE_HUB_TOKEN=${HF_TOKEN}
+      - NVIDIA_VISIBLE_DEVICES=all
+    env_file:
+      - .env
+    volumes:
+      - sarvam_models:/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
   tdms-backend:
     build:
       context: .
@@ -122,8 +144,6 @@ services:
     depends_on:
       auth-service:
         condition: service_healthy
-    ports:
-      - "7250:7250"
     expose:
       - "7250"
     env_file:
@@ -141,11 +161,11 @@ services:
       context: .
       dockerfile: Dockerfile.app-front-end
       args:
-        REACT_APP_API_BASE_URL: ${REACT_APP_API_BASE_URL:-http://localhost:7000}
-        REACT_APP_AUTH_SERVICE_URL: ${REACT_APP_AUTH_SERVICE_URL:-http://localhost:7500}
-        REACT_APP_TDMS_API_BASE_URL: ${REACT_APP_TDMS_API_BASE_URL:-http://localhost:7250}
-        REACT_APP_TEST_DATA_URL: ${REACT_APP_TEST_DATA_URL:-http://localhost:8080/dashboard}
-        REACT_APP_USER_LIST_URL: ${REACT_APP_USER_LIST_URL:-http://localhost:8080/users}
+        REACT_APP_API_BASE_URL: ${REACT_APP_API_BASE_URL:-/api}
+        REACT_APP_AUTH_SERVICE_URL: ${REACT_APP_AUTH_SERVICE_URL:-/auth}
+        REACT_APP_TDMS_API_BASE_URL: ${REACT_APP_TDMS_API_BASE_URL:-/tdms-api}
+        REACT_APP_TEST_DATA_URL: ${REACT_APP_TEST_DATA_URL:-/tdms/dashboard}
+        REACT_APP_USER_LIST_URL: ${REACT_APP_USER_LIST_URL:-/tdms/users}
     container_name: aiet-app-frontend
     restart: unless-stopped
     depends_on:
@@ -153,17 +173,15 @@ services:
         condition: service_healthy
       auth-service:
         condition: service_healthy
-    ports:
-      - "3000:80"
 
   tdms-frontend:
     build:
       context: .
       dockerfile: Dockerfile.tdms-frontend
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:7250}
-        VITE_AUTH_SERVICE_URL: ${VITE_AUTH_SERVICE_URL:-http://localhost:7500}
-        VITE_TEST_RUNS_HOME_URL: ${VITE_TEST_RUNS_HOME_URL:-http://localhost:3000/}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/tdms-api}
+        VITE_AUTH_SERVICE_URL: ${VITE_AUTH_SERVICE_URL:-/auth}
+        VITE_TEST_RUNS_HOME_URL: ${VITE_TEST_RUNS_HOME_URL:-/}
     container_name: aiet-tdms-frontend
     restart: unless-stopped
     depends_on:
@@ -171,8 +189,33 @@ services:
         condition: service_healthy
       auth-service:
         condition: service_healthy
+    expose:
+      - "80"
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: aiet-nginx
+    restart: unless-stopped
+    depends_on:
+      app-front-end:
+        condition: service_started
+      tdms-frontend:
+        condition: service_started
+      app-backend:
+        condition: service_healthy
+      tdms-backend:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
     ports:
-      - "8080:80"
+      - "${NGINX_PORT:-80}:80"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/healthz"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
 
 volumes:
   mariadb_data:

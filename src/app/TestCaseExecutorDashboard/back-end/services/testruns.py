@@ -5,7 +5,7 @@ from typing import Optional,List,Literal
 from fastapi import HTTPException, BackgroundTasks
 from datetime import datetime
 import randomname
-
+from lib.utils import get_logger, get_logger_verbosity
 from configuration.paths import (
     ROOT_CONFIG_PATH as interface_manager_config,
     wb,
@@ -18,11 +18,12 @@ from fastapi.responses import FileResponse
 from tasks.test_run_tasks import execute_testcases
 from utils.port import ensure_interface_manager_port_running
 
+logger = get_logger(__name__)
 
 def start_run_service(db, data: NewTestRun, background_tasks: BackgroundTasks):
     ensure_interface_manager_port_running(interface_manager_config)
     if data.testPlan:
-        print("Starting new test run...")
+        logger.info("Starting new test run...")
         target = data.target
         target = re.sub(r"\s*\(.*?\)", "", target)
 
@@ -39,7 +40,7 @@ def start_run_service(db, data: NewTestRun, background_tasks: BackgroundTasks):
             )
         try:
             max_test_cases = int(data.maxTestCases)
-            print(max_test_cases)
+            
         except (TypeError, ValueError):
             raise HTTPException(
                 status_code=400,
@@ -55,25 +56,25 @@ def start_run_service(db, data: NewTestRun, background_tasks: BackgroundTasks):
         start_time = datetime.now().isoformat()
         run = Run(target=target, run_name=run_name, start_ts=start_time)
         run_id = db.add_or_update_testrun(run)
-        print(f"Starting run: {run_name} with run id {run_id}")
+        logger.info(f"Starting run: {run_name} with run id {run_id}")
 
         if plan_name is None:
-            print(f"No test plan found with name {plan_name}.")
+            logger.error(f"No test plan found with name {plan_name}.")
             return
-        print(f"Starting run with Test Plan: {plan_name}")
+        logger.info(f"Starting run with Test Plan: {plan_name}")
 
         if test_case_id:
             testcases = db.get_testcase_by_name(test_case_id)
             if not testcases:
                 raise HTTPException(
-                    status_code=500,
+                    status_code=404,
                     detail=f"Test case ID '{test_case_id}' does not exist",
                 )
 
             testcases = [testcases]
             total_testcases = len(testcases)
-            print(f"Length of testcases: {len(testcases)}")
-            print(type(testcases))
+            logger.info(f"Length of testcases: {len(testcases)}")
+            
 
             run.status = "RUNNING"
             db.add_or_update_testrun(run=run)
@@ -100,8 +101,11 @@ def start_run_service(db, data: NewTestRun, background_tasks: BackgroundTasks):
                 domain_name=domain_name,
             )
             if not testcases:
-                print("No Test cases Found")
-                return
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No Test cases found",
+                )
+                
             total_testcases = len(testcases)
             run.status = "RUNNING"
             db.add_or_update_testrun(run=run)
@@ -123,8 +127,11 @@ def start_run_service(db, data: NewTestRun, background_tasks: BackgroundTasks):
                 domain_name=domain_name,
             )
             if not testcases:
-                print("No Test cases Found")
-                return
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No Test cases found",
+                )
+                
             total_testcases = len(testcases)
             run.status = "RUNNING"
             db.add_or_update_testrun(run=run)
@@ -158,8 +165,7 @@ def continue_run_service(db, run_name: str):
         raise HTTPException(status_code=404, detail="Run not found")
 
     details = db.get_run_details_by_run_id(run.run_id)
-    print(f"Run {run_name} has {run} details")
-    print(f"Found {len(details)} details for run {run_name}")
+    
     return {"run": run, "details": details}
 
 
@@ -248,7 +254,42 @@ def get_test_run_service(db, run_name: str, metric: Optional[str] = None, status
         run = db.get_run_by_name(run_name)
         if not run:
             raise HTTPException(status_code=404, detail="Run not found")
+        timeline = db.get_run_timeline(run_name) or []
+            
+        if timeline:
+            events_by_plan = {}
+            total_seconds = 0
 
+            for e in timeline:
+                events_by_plan.setdefault(e.plan_name, []).append(e)
+
+                for plan_events in events_by_plan.values():
+                    start_times = [
+                        datetime.fromisoformat(e.prompt_ts).timestamp()
+                        for e in plan_events if e.prompt_ts
+                    ]
+
+                    end_times = [
+                        datetime.fromisoformat(e.response_ts).timestamp()
+                        for e in plan_events if e.response_ts
+                    ]
+
+                    if start_times and end_times:
+                        total_seconds += (max(end_times) - min(start_times))
+
+                duration_ms = int(total_seconds * 1000)    
+
+            scores = []
+            for e in timeline:
+                if e.evaluation_score is not None:
+                    scores.append(float(e.evaluation_score))
+
+            average_score = (
+                round(sum(scores) / len(scores), 4)
+                if scores
+                else None
+            )
+            
         domain_name = None
         if getattr(run, "target_id", None):
             target = db.get_target_by_id(run.target_id)
@@ -262,9 +303,10 @@ def get_test_run_service(db, run_name: str, metric: Optional[str] = None, status
             domain=domain_name,
             status=run.status,
             start_ts=run.start_ts,
-            end_ts=run.end_ts
+            end_ts=run.end_ts,
+            average_score=average_score,
         )
-
+        logger.info(f"Run summary: {summary}")
         details = db.get_all_run_details_by_run_name(run_name)
 
         details_response = []
@@ -360,12 +402,12 @@ def get_all_test_runs_service(
 
             scores = []
             for e in timeline:
-                if e.evaluation_score is not None:
+                if (e.evaluation_score is not None) and (e.evaluation_score <= 1):
                     scores.append(float(e.evaluation_score))
 
             average_score = (
                 round(sum(scores) / len(scores), 4)
-                if scores
+                if scores 
                 else None
             )
             evaluation_ts = max(
@@ -437,7 +479,7 @@ def get_run_evaluation_summary_service(db, run_name: str):
 
     for d in details:
         conv = db.get_conversation_by_id(d.conversation_id)
-        print(conv.evaluation_score)
+        
         if not conv:
             continue
         evaluations.append(

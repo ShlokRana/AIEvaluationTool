@@ -2,14 +2,18 @@ import os
 import json
 import sys
 from pathlib import Path
-
+from lib.utils import get_logger, get_logger_verbosity
+logger = get_logger(__name__)
 # Allow running this file directly (e.g. `python database.py`) by ensuring the repo's `src/`
 # directory is on `sys.path` so imports like `from lib.orm import DB` work.
+
+
+
 SRC_DIR = Path(__file__).resolve().parents[4]
 if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 project_root = Path(__file__).resolve().parents[5]
-print(f"Project root determined to be: {project_root}")
+
 # Import after config/print so a missing dependency doesn't hide the engine selection output.
 from lib.orm import DB
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

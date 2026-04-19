@@ -22,13 +22,14 @@ import Metrics from "./pages/Metrics";
 
 
 const queryClient = new QueryClient();
+const routerBasename = import.meta.env.BASE_URL;
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <BrowserRouter basename={routerBasename}>
         {parseUrlTokens()}
         <Routes>
           <Route path="/" element={isAuthenticated() ? <Navigate to="/dashboard" replace /> : <Login />} />

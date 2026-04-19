@@ -36,7 +36,6 @@ The core CLI workflow handles importing data, executing testcases, analyzing res
 
 - For the command-line workflow, continue to [AI Evaluation Tool CLI](../ai_evaluation_tool_cli/index.md).
 - For containerized execution, continue to [Docker Setup](../docker_setup/index.md).
-- For the execution dashboard, continue to [AI Evaluation Tool UI](../ai_evaluation_tool_ui/index.md).
-- For data management, continue to [TDMS](../tdms/index.md).
+- For the execution dashboard, continue to [TDMS + Dashboard UI](../TDMS_and_Dashboard_ui/index.md).
+- For data management, continue to [TDMS + Dashboard UI](../TDMS_and_Dashboard_ui/index.md).
 - For prompt-focused evaluation, continue to [PQET](../pqet/index.md).
-

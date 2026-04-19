@@ -32,6 +32,7 @@ class TestRunSummaryResponse(BaseModel):
     status: str
     start_ts: str
     end_ts: Optional[str] = None
+    average_score: Optional[float] = None
 
 
 class TestRunFullResponse(BaseModel):

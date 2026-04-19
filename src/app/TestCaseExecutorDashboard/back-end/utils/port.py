@@ -5,12 +5,13 @@ from urllib.parse import urlparse
 import psutil
 import requests
 from fastapi import HTTPException
-
+from lib.utils import get_logger, get_logger_verbosity
+logger = get_logger(__name__)
 
 def check_service(url: str, name: str):
     try:
         response = requests.get(url, timeout=3)
-        print(f"Health check for {name} service at {url} returned status code {response.status_code}")
+        logger.info(f"Health check for {name} service at {url} returned status code {response.status_code}")
         if response.status_code < 400:
             return f"{name} service is reachable at {url}"
         if response.status_code >= 400:
@@ -93,16 +94,16 @@ def stop_interface_manager(config_path: str, profile_path: str = "/home/varun/te
         # 1️⃣ Try /close first
         try:
             requests.get(f"{base_url}/close", timeout=3)
-            print("IM /close called successfully")
+            logger.info("Interface Manager /close called successfully")
         except Exception as e:
-            print(f"/close failed (IM may already be dead): {e}")
+            logger.error(f"/close failed (IM may already be dead): {e}")
 
         # 2️⃣ Kill ALL python processes on that port
         for proc in psutil.process_iter(['pid', 'name']):
             try:
                 for conn in proc.net_connections(kind='inet'):
                     if conn.laddr.port == port:
-                        print(f"Killing PID {proc.pid} ({proc.name()}) on port {port}")
+                        logger.info(f"Killing PID {proc.pid} ({proc.name()}) on port {port}")
                         proc.kill()
                         proc.wait(timeout=3)
             except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -114,15 +115,15 @@ def stop_interface_manager(config_path: str, profile_path: str = "/home/varun/te
                 if 'chrome' in (proc.info['name'] or '').lower():
                     cmdline = ' '.join(proc.info['cmdline'] or [])
                     if f'user-data-dir={profile_path}' in cmdline:  # 👈 only IM's Chrome
-                        print(f"Killing IM Chrome PID {proc.pid} with profile {profile_path}")
+                        logger.info(f"Killing IM Chrome PID {proc.pid} with profile {profile_path}")
                         proc.kill()
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
 
-        print("✅ IM and IM Chrome killed — other Chrome windows untouched!")
+        logger.info("✅ IM and IM Chrome killed — other Chrome windows untouched!")
 
     except Exception as e:
-        print(f"Failed to stop interface manager: {e}")
+        logger.error(f"Failed to stop interface manager: {e}")
 
 def get_chrome_pids_on_port(port: int) -> set:
     """Get Chrome PIDs that are children of the IM process on this port"""
@@ -140,7 +141,7 @@ def get_chrome_pids_on_port(port: int) -> set:
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
     except Exception as e:
-        print(f"Error getting chrome pids: {e}")
+        logger.error(f"Error getting chrome pids: {e}")
     return chrome_pids   
 
 def watch_chrome_and_kill_im(config_path: str):
@@ -154,17 +155,17 @@ def watch_chrome_and_kill_im(config_path: str):
         port = parsed.port
 
         # 1️⃣ Wait for Chrome to actually launch first
-        print("👀 Watcher waiting for Chrome to launch...")
+        logger.info("👀 Watcher waiting for Chrome to launch...")
         chrome_pids = set()
         for _ in range(15):  # wait up to 15 seconds for Chrome to appear
             chrome_pids = get_chrome_pids_on_port(port)
             if chrome_pids:
-                print(f"👀 Watching specific Chrome PIDs: {chrome_pids}")
+                logger.info(f"👀 Watching specific Chrome PIDs: {chrome_pids}")
                 break
             time.sleep(1)
 
         if not chrome_pids:
-            print("👀 No Chrome found — watcher exiting")
+            logger.info("👀 No Chrome found — watcher exiting")
             return
 
         # 2️⃣ Now watch ONLY those specific Chrome PIDs
@@ -181,14 +182,14 @@ def watch_chrome_and_kill_im(config_path: str):
                     continue
 
             if not any_alive:
-                print("💀 IM Chrome is dead — killing IM!")
+                logger.info("💀 IM Chrome is dead — killing IM!")
                 stop_interface_manager(config_path)
                 break
 
-        print("👀 Chrome watcher stopped")
+        logger.info("👀 Chrome watcher stopped")
 
     except Exception as e:
-        print(f"Watcher error: {e}")
+        logger.error(f"Watcher error: {e}")
 
 def watch_im_process(config_path: str, profile_path: str, stop_event: threading.Event):
     import time
@@ -204,32 +205,32 @@ def watch_im_process(config_path: str, profile_path: str, stop_event: threading.
                 continue
         return False
 
-    print("👀 Waiting for IM Chrome to open...")
+    logger.info("👀 Waiting for IM Chrome to open...")
 
     # 1️⃣ Wait for Chrome with this profile to open
     for _ in range(30):
         if stop_event.is_set():
-            print("👀 Run finished — watcher exiting")
+            logger.info("👀 Run finished — watcher exiting")
             return
         if is_im_chrome_open():
-            print(f"👀 IM Chrome is open — watching profile {profile_path}")
+            logger.info(f"👀 IM Chrome is open — watching profile {profile_path}")
             break
         time.sleep(1)
     else:
-        print("👀 IM Chrome never opened — watcher exiting")
+        logger.info("👀 IM Chrome never opened — watcher exiting")
         return
 
     # 2️⃣ Now watch if it closes
     while True:
         time.sleep(2)
         if stop_event.is_set():
-            print("👀 Run completed normally — NOT killing IM ✅")
+            logger.info("👀 Run completed normally — NOT killing IM ✅")
             return
         if not is_im_chrome_open():
-            print("💀 IM Chrome closed — killing IM!")
+            logger.info("💀 IM Chrome closed — killing IM!")
             stop_interface_manager(config_path)
             break
 
-    print("👀 Watcher stopped")        
+           
 
              

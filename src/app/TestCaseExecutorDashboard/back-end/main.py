@@ -81,7 +81,7 @@ if not os.path.exists(interface_manager_config):
     )
 
 back_end_root=os.path.abspath(os.path.join(os.path.dirname(__file__)))
-print(f"Back-end root resolved to: {back_end_root}")
+
 
 template_path = os.path.join(
     back_end_root,

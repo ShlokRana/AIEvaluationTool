@@ -671,6 +671,120 @@ class EvaluationReport:
             <p class="summary">{run_summary}</p>
             """
 
+    # ---------------------------------------------
+    # Build HTML rows
+    # ---------------------------------------------
+
+    def build_rows(self, rows, include_plan_summary):
+
+        html_rows = ""
+
+        for r in rows:
+
+            plan = r[0]
+            metric = r[1]
+            score = r[2]
+            metric_summary = r[3]
+            plan_summary = r[4] if len(r) > 4 else ""
+
+            if include_plan_summary:
+
+                html_rows += f"""
+                <tr>
+                    <td>{plan}</td>
+                    <td>{metric}</td>
+                    <td>{score}</td>
+                    <td>{metric_summary}</td>
+                    <td>{plan_summary}</td>
+                </tr>
+                """
+
+            else:
+
+                html_rows += f"""
+                <tr>
+                    <td>{plan}</td>
+                    <td>{metric}</td>
+                    <td>{score}</td>
+                    <td>{metric_summary}</td>
+                </tr>
+                """
+
+        return html_rows
+
+
+    # ---------------------------------------------
+    # Extract plan summary if only one plan
+    # ---------------------------------------------
+
+    def extract_plan_summary(self, score_card):
+        for plan in score_card.values():
+            for metric in plan.values():
+                summary = metric.get("plan_summary")
+                if summary:
+                    return summary
+        return ""
+
+    # ---------------------------------------------
+    # Generate HTML
+    # ---------------------------------------------
+
+    def generate_html(
+        self,
+        target_name,
+        run_name,
+        timestamp,
+        total_testcases,
+        run_summary,
+        headers,
+        rows,
+        score_card
+    ):
+
+        plan_count = self.count_plans(rows)
+
+        include_plan_summary = plan_count > 1
+
+        table_rows = self.build_rows(rows, include_plan_summary)
+
+        # adjust headers
+        if include_plan_summary:
+            header_html = "".join(f"<th>{h}</th>" for h in headers)
+        else:
+            header_html = "".join(f"<th>{h}</th>" for h in headers[:-1])
+
+        header_html = "".join(f"<th>{h}</th>" for h in headers)
+
+        # column layout
+        if include_plan_summary:
+
+            colgroup = """
+            <col style="width:15%">
+            <col style="width:20%">
+            <col style="width:7%">
+            <col style="width:29%">
+            <col style="width:29%">
+            """
+
+        else:
+
+            colgroup = """
+            <col style="width:18%">
+            <col style="width:25%">
+            <col style="width:7%">
+            <col style="width:50%">
+            """
+
+        # summary logic
+        summary_section = ""
+
+        if include_plan_summary:
+
+            summary_section = f"""
+            <h2>Target Evaluation Run Summary</h2>
+            <p class="summary">{run_summary}</p>
+            """
+
         else:
 
             plan_summary = self.extract_plan_summary(score_card)

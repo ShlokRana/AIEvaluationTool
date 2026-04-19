@@ -41,7 +41,7 @@ function App() {
 
     // Validate token with backend
     const tdmsBaseUrl =
-      process.env.REACT_APP_TDMS_API_BASE_URL || "http://localhost:7250";
+      process.env.REACT_APP_TDMS_API_BASE_URL || "/tdms-api";
     const validateToken = async () => {
       try {
         const response = await fetch(`${tdmsBaseUrl}/api/users/me`, {

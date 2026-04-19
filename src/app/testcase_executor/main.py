@@ -151,8 +151,10 @@ def main():
     if config['interface_manager']['docker']:
         interface_manager_url = config.get("interface_manager", {}).get("base_url", "http://interface-manager:8000")
         selenium_mode = config.get("selenium_mode", {}).get("selenium_mode", "remote")
+        selenium_mode = config.get("selenium_mode", {}).get("selenium_mode", "remote")
     else:
         interface_manager_url = "http://localhost:8000"
+        selenium_mode = config.get("selenium_mode", {}).get("selenium_mode", "local")
         selenium_mode = config.get("selenium_mode", {}).get("selenium_mode", "local")
 
 
@@ -480,6 +482,8 @@ def main():
                         "agent_name": agent_name,
                         "application_url": application_url,
                         "selenium_mode": selenium_mode
+                        "application_url": application_url,
+                        "selenium_mode": selenium_mode
                     })
                     client.apply_server_config()
 
@@ -617,6 +621,8 @@ def main():
                     "application_name": application_name,
                     "application_type": application_type,
                     "agent_name": agent_name,
+                    "application_url": application_url,
+                    "selenium_mode": selenium_mode
                     "application_url": application_url,
                     "selenium_mode": selenium_mode
                 })
@@ -767,6 +773,8 @@ def main():
                     "application_name": application_name,
                     "application_type": application_type,
                     "agent_name": agent_name,
+                    "application_url": application_url,
+                    "selenium_mode": selenium_mode
                     "application_url": application_url,
                     "selenium_mode": selenium_mode
                 })

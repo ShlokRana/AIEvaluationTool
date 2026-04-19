@@ -1,6 +1,6 @@
 # Docker Run
 
-The Docker workflow provides a containerized way to run the AI Evaluation Tool stack without setting up every supporting service manually on the host system.
+The Docker workflow provides a containerized way to run the AI Evaluation Tool stack without setting up each service manually on the host.
 
 ## What Docker Adds
 
@@ -13,12 +13,10 @@ The Docker setup centers around these services:
 - `db` for MariaDB
 - `selenium-browser` for browser automation and live browser viewing
 - `interface-manager` for target interaction
-- `app-cli` for importer, execution, analysis, and reporting commands
+- `auth-service`, `app-backend`, `app-front-end`, `tdms-backend`, `tdms-frontend`
+- `nginx` as the single public entrypoint
 
-Optional services are also available for TDMS:
-
-- `tdms-backend`
-- `tdms-frontend`
+CLI tasks (import, execution, analysis, reporting) are run through `app-backend`.
 
 ## Typical Docker Workflow
 
@@ -26,9 +24,9 @@ At a high level, the Docker workflow looks like this:
 
 1. Prepare `.env` and repository configuration files.
 2. Build the Docker images.
-3. Start the core services.
+3. Start the stack through `nginx`.
 4. Make Ollama and Sarvam AI reachable from the containerized CLI flow.
-5. Run importer, testcase execution, analysis, and report commands with `docker compose`.
+5. Run importer, testcase execution, analysis, and report commands with `docker compose run ... app-backend`.
 
 This makes Docker a good option when you want a reproducible environment for local development, shared setup across teammates, or cleaner service orchestration.
 
@@ -48,5 +46,4 @@ Docker is a strong choice when:
 ## Related Sections
 
 - [Docker Setup](../docker_setup/index.md)
-- [AI Evaluation Tool CLI](../ai_evaluation_tool_cli/index.md)
-
+- [Setup And Configuration](../docker_setup/setup_and_configuration.md)

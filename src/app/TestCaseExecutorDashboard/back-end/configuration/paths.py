@@ -13,8 +13,8 @@ ROOT_CONFIG_PATH = os.path.join(Path(__file__).resolve().parents[5], "config.jso
  
 profile_path = os.path.expanduser("~/test_profile")
 
-print(f"Determined ROOT_CONFIG_PATH: {ROOT_CONFIG_PATH}")
+
 TEMPLATE_PATH = os.path.join(BACKEND_ROOT, "templates", "Reports.xlsx")
-print(f"Determined TEMPLATE_PATH: {TEMPLATE_PATH}")
+
 
 wb = load_workbook(TEMPLATE_PATH)

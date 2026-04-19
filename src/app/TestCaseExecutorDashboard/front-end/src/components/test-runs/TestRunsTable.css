@@ -395,14 +395,13 @@ td.col-evaluation {
   animation: spin 0.8s linear infinite;
 }
 .download-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9999;
-  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.55);
 }
 .download-overlay-card {
   background: #fff;

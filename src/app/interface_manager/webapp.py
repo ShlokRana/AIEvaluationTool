@@ -126,6 +126,7 @@ def send_prompt(
     url = cfg.get("application_url", "UNKNOWN")
 
     app_name = app_name.lower()
+    chat_cfg = load_xpaths()["applications"][app_name]["ChatPage"]
 
     driver = driver_manager.get_driver(app_name, url)
 

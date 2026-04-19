@@ -3,7 +3,8 @@ import { AUTH_PAGE_URL } from "@/config/api";
 
 const Login = () => {
   useEffect(() => {
-    const returnUrl = `${window.location.origin}/dashboard`;
+    const appBase = import.meta.env.BASE_URL.replace(/\/$/, "");
+    const returnUrl = `${window.location.origin}${appBase}/dashboard`;
     window.location.href = `${AUTH_PAGE_URL}?return_url=${encodeURIComponent(returnUrl)}`;
   }, []);
 

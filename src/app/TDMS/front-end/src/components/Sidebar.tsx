@@ -29,8 +29,8 @@ const Sidebar = () => {
   const [userInfo, setUserInfo] = useState<UserInfo>({ user_name: "UserName", email: "", role: "Admin" });
   const [isLoading, setIsLoading] = useState(true);
   const testRunsHomeUrl =
-    import.meta.env.VITE_TEST_RUNS_HOME_URL || "http://localhost:3000/";
-  const authServiceUrl = import.meta.env.VITE_AUTH_SERVICE_URL || "http://localhost:7500";
+    import.meta.env.VITE_TEST_RUNS_HOME_URL || "/";
+  const authServiceUrl = import.meta.env.VITE_AUTH_SERVICE_URL || "/auth";
   const authLoginUrl = `${authServiceUrl}/web/login`;
 
   const clearSession = () => {

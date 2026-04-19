@@ -5,13 +5,13 @@ from threading import Lock
 import asyncio
 import os
 import requests
-
+from lib.utils import get_logger, get_logger_verbosity
+logger = get_logger(__name__)
 from services.ws_manager import ws_manager
 
 ollama_port = os.getenv("OLLAMA_URL")
 gpu_url = os.getenv("GPU_URL")
-print(f"Ollama URL: {ollama_port}")
-print(f"GPU URL: {gpu_url}")
+
 
 analysis_jobs = {}
 analysis_jobs_lock = Lock()
@@ -50,17 +50,17 @@ def get_analyse_status_service(run_name: str):
 
 
 def start_analyse_service(run_name: str, db, background_tasks: BackgroundTasks, mode: str = "rerun_all"):
-    print(f"[SERVICE] Starting analysis service for run '{run_name}' with mode '{mode}'")
+    logger.info(f"[SERVICE] Starting analysis service for run '{run_name}' with mode '{mode}'")
     try:
         run = db.get_run_by_name(run_name=run_name)
         if not run:
-            print(f"Run with name '{run_name}' not found.")
+            logger.error(f"Run with name '{run_name}' not found.")
             raise HTTPException(
                 status_code=404,
                 detail=f"Run with name '{run_name}' not found."
             )
         if run.status != "COMPLETED":
-            print(f"Run '{run_name}' is not completed. Current status: {run.status}")
+            logger.error(f"Run '{run_name}' is not completed. Current status: {run.status}")
             raise HTTPException(
                 status_code=400,
                 detail=f"Run '{run_name}' is not completed. Current status: {run.status}"
@@ -77,7 +77,7 @@ def start_analyse_service(run_name: str, db, background_tasks: BackgroundTasks, 
         ]
 
         if mode == "retry_failed":
-            print("Running only failed test cases...")
+            logger.info("Running only failed test cases...")
             filtered_run_details = []
             for detail in run_details:
                 conversation = db.get_conversation_by_id(detail.conversation_id)
@@ -86,11 +86,11 @@ def start_analyse_service(run_name: str, db, background_tasks: BackgroundTasks, 
                 reason = conversation.evaluation_reason or ""
                 if reason.strip() == "":
                     filtered_run_details.append(detail)
-            print(filtered_run_details)
-            print(f"Retry Failed: {len(filtered_run_details)} / {len(run_details)} selected")
+            logger.info(f"Filtered Run Details: {filtered_run_details}")
+            logger.info(f"Retry Failed: {len(filtered_run_details)} / {len(run_details)} selected")
             run_details = filtered_run_details
             if not run_details:
-                print("No failed test cases to retry")
+                logger.info("No failed test cases to retry")
                 return
         total_items = len(run_details) if run_details else 0
         _set_analysis_job(
@@ -170,9 +170,9 @@ async def run_analyse_background_service(run_name: str, db, mode: str = "rerun_a
         run_details = [
             rd for rd in run_details if rd.status == "COMPLETED"
         ]
-        print("mode:", mode)
+        
         if mode == "retry_failed":
-            print("Running only failed test cases...")
+            logger.info("Running only failed test cases...")
             filtered_run_details = []
             for detail in run_details:
                 conversation = db.get_conversation_by_id(detail.conversation_id)
@@ -181,13 +181,13 @@ async def run_analyse_background_service(run_name: str, db, mode: str = "rerun_a
                 reason = conversation.evaluation_reason or ""
                 if reason.strip() == "":
                     filtered_run_details.append(detail)
-            print(f"Retry Failed: {len(filtered_run_details)} / {len(run_details)} selected")
+            logger.info(f"Retry Failed: {len(filtered_run_details)} / {len(run_details)} selected")
             run_details = filtered_run_details
             if not run_details:
-                print("No failed test cases to retry")
+                logger.info("No failed test cases to retry")
                 return        
         if not run_details:
-            print(f"No run details found for run '{run_name}'.")
+            logger.error(f"No run details found for run '{run_name}'.")
             raise HTTPException(
                 status_code=404,
                 detail=f"No run details found for run '{run_name}'."
@@ -203,9 +203,9 @@ async def run_analyse_background_service(run_name: str, db, mode: str = "rerun_a
             metric_name = getattr(detail, "metric_name", None)
             detail_id = getattr(detail, "detail_id", None)
             conversation_id = getattr(detail, "conversation_id", None)
-            print(f"[LOOP START] detail_id={detail_id} testcase={testcase_name} conversation_id={conversation_id}")
+            logger.info(f"[LOOP START] detail_id={detail_id} testcase={testcase_name} conversation_id={conversation_id}")
             # Always attempt to resolve strategy; missing strategy becomes a per-testcase failure.
-            print(f"[PRE-TRY] status={getattr(detail, 'status', None)}  conversation_id={conversation_id}")
+            logger.info(f"[PRE-TRY] status={getattr(detail, 'status', None)}  conversation_id={conversation_id}")
             strategy_name = None
             try:
                 strategy_name = db.get_testcase_strategy_name(testcase_name=testcase_name)
@@ -244,7 +244,7 @@ async def run_analyse_background_service(run_name: str, db, mode: str = "rerun_a
                     raise ValueError(f"Conversation ID not found for testcase '{testcase_name}' (detail ID {detail_id}).")
 
                 conversation = db.get_conversation_by_id(conversation_id)
-                print(f"[DEBUG] detail_id={detail_id} testcase={testcase_name} conversation={conversation} agent_response={repr(getattr(conversation, 'agent_response', 'NO_CONV'))}")
+                logger.info(f"[DEBUG] detail_id={detail_id} testcase={testcase_name} conversation={conversation} agent_response={repr(getattr(conversation, 'agent_response', 'NO_CONV'))}")
 
                 if not conversation:
                     raise ValueError(
@@ -256,11 +256,11 @@ async def run_analyse_background_service(run_name: str, db, mode: str = "rerun_a
                         f"NO_AGENT_RESPONSE: No agent response recorded for testcase '{testcase_name}' (detail ID: {detail_id})."
                     )    
                 agent_response = getattr(conversation, "agent_response", None)
-                print(f"Evaluating testcase='{testcase_name}' conversation_id='{conversation_id}' detail_id={detail_id} | agent_response value: {repr(agent_response)}")
+                logger.info(f"Evaluating testcase='{testcase_name}' conversation_id='{conversation_id}' detail_id={detail_id} | agent_response value: {repr(agent_response)}")
                 
                 # Check for agent response immediately after getting conversation
                 if not agent_response or str(agent_response).strip() == "":
-                    print(f"[NO_AGENT_RESPONSE] testcase='{testcase_name}' conversation_id='{conversation_id}' detail_id={detail_id} | agent_response value: {repr(agent_response)}")
+                    logger.info(f"[NO_AGENT_RESPONSE] testcase='{testcase_name}' conversation_id='{conversation_id}' detail_id={detail_id} | agent_response value: {repr(agent_response)}")
                     raise ValueError(
                         f"NO_AGENT_RESPONSE: No response received from model for testcase '{testcase_name}' (conversation ID: {conversation_id}, detail ID: {detail_id})."
                     )

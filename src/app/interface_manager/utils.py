@@ -244,16 +244,26 @@ def retry_on_internet(max_attempts: int = 5, initial_delay: int = 3, max_delay: 
     return False
 
 
+# Function to identify selector type
+def get_selector_type(selector: str):
+    selector = selector.strip()
+
+    # XPath patterns
+    if selector.startswith("//") or selector.startswith("(//") or selector.startswith(".//"):
+        return By.XPATH
+
+    # Default → CSS
+    return By.CSS_SELECTOR
+
 # --------------------------------------------------------------------
 # UI Helpers
 # --------------------------------------------------------------------
 def is_logged_in(driver: webdriver.Chrome, send_element: str) -> bool:
     """Check if a user is logged in by verifying presence of a profile element."""
     try:
-        print("received xpath: ", send_element)
-        # print(driver.page_source)
+        by = get_selector_type(send_element)
         WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.XPATH, send_element))
+            EC.presence_of_element_located((by, send_element))
         )
         return True
     except Exception as e:
@@ -345,20 +355,17 @@ def login_app(driver: webdriver.Chrome, app_name: str) -> bool:
         cred_cfg = load_creds()["applications"].get(app_name.lower(), {})
 
         qr_cfg = app_cfg.get("ChatPage", {}).get("scan_qr_code_element")
-        print(qr_cfg)
-        print(app_name.lower())
 
         if app_name.lower() == "whatsapp" or app_name.lower() == "whatsapp web" or app_name.lower() == "whatsapp_web":
-            wait_for_login = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.XPATH, qr_cfg))
-            )
-            print(wait_for_login)
-            if wait_for_login:
-                time.sleep(60)  # wait for QR code to load
-                logger.info("Waiting for WhatsApp Web login via QR code.")
+            try:
+                wait_for_login = WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.XPATH, qr_cfg))
+                )
+                logger.info(f"{app_name.upper()} requires QR code login. Please scan the QR code with your mobile app.")
+                time.sleep(60)
                 return True
-            else:
-                logger.info(f"{app_name} has no LoginPage config → skipping login")
+            except TimeoutException:
+                logger.error(f"QR code element not found for {app_name}")
                 return True
 
         if not login_cfg:

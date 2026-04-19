@@ -40,6 +40,5 @@ While the CLI handles execution and analysis, TDMS focuses on preparing and main
 
 ## Related Sections
 
-- [TDMS documentation](../tdms/index.md)
+- [TDMS + Dashboard UI documentation](../TDMS_and_Dashboard_ui/index.md)
 - [Docker Setup](../docker_setup/index.md)
-

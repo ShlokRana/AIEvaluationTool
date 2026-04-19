@@ -1,170 +1,234 @@
 # Setup And Configuration
 
-This page documents the required setup before running the Docker workflow.
+This page explains how to run the AI Evaluation Tool from scratch using Docker, with separate flows for:
 
-The goal of this setup page is to make sure the containers can talk to each other correctly before you start any evaluation run. Most Docker-related issues in this project come from environment values, service naming, or browser automation configuration, so it is worth getting these pieces right first.
+- UI-based usage
+- CLI-based usage
+
+It is aligned with the current Compose stack (`app-backend`, `app-front-end`, `auth-service`, `tdms-backend`, `tdms-frontend`, `nginx`).
 
 ## Prerequisites
 
 - Docker Engine `24+`
 - Docker Compose `v2+`
-- local clone of this repository
+- Repository cloned locally
 
-You do not need to install every application component manually when using Docker, but you do need a working Docker environment and a cloned repository because the images are built from the local source tree.
+## Current Docker Stack
 
-## Build Context And Services
+Primary services in [docker-compose.yml][docker-compose]:
 
-The repository includes a Compose file and Dockerfiles for the main services:
+- `db` (MariaDB)
+- `selenium-browser` (Chrome + WebDriver + noVNC)
+- `interface-manager` (target interaction service)
+- `auth-service` (authentication and route redirects)
+- `app-backend` (TCE backend + CLI runtime environment)
+- `tdms-backend` (TDMS API)
+- `app-front-end` (TCE UI build)
+- `tdms-frontend` (TDMS UI build)
+- `nginx` (single public entrypoint and reverse proxy)
 
-- [docker-compose.yml][docker-compose]
-- [Dockerfile.app-cli][dockerfile-app-cli]
-- [Dockerfile.interface-manager][dockerfile-interface-manager]
-- [Dockerfile.tdms-backend][dockerfile-tdms-backend]
-- [Dockerfile.tdms-frontend][dockerfile-tdms-frontend]
+Public access is through `nginx` on `http://localhost:${NGINX_PORT:-80}`.
 
-The Compose stack starts:
+## Configuration Files To Prepare
 
-- `db`
-- `selenium-browser`
-- `interface-manager`
-- `app-cli`
-- `tdms-backend`
-- `tdms-frontend`
+### 1. Root `.env`
 
-In practice, the core evaluation workflow usually depends on `db`, `selenium-browser`, `interface-manager`, and `app-cli`. The TDMS services are only needed if you also want the data-management UI.
-
-## Create The Root `.env`
-
-This Docker workflow reads environment variables from the root `.env` file.
-
-Create it from the example if needed:
+Create `.env` if not present:
 
 ```bash
 cp .env.example .env
 ```
 
-At minimum, you should set the model-related variables described in the Docker and README guides:
+Minimal runtime values:
 
 ```env
 OLLAMA_URL="http://host.docker.internal:11434/"
 GPU_URL="http://host.docker.internal:16000/"
 LLM_AS_JUDGE_MODEL="qwen3:32b"
+HF_TOKEN=""
+PERSPECTIVE_API_KEY=""
 SARVAM_API_KEY=""
+GEMINI_API_KEY=""
 OPENAI_API_KEY=""
 ```
 
-These values are especially important because the `app-cli` container relies on them when calling model endpoints during evaluation and analysis.
+### 2. Optional `.env` Overrides (All Compose-Tunable Variables)
 
-## Configure Root `config.json`
+Use these only when you need custom ports, DB credentials, or custom frontend/backend routes:
 
-Use Docker service names so the containers can resolve each other correctly on the Compose network.
+```env
+# Public port for nginx
+NGINX_PORT=80
 
-This is one of the biggest differences between local non-Docker execution and Docker execution. Inside the Compose network, services should refer to each other by service name rather than `localhost`.
+# MariaDB
+MARIADB_ROOT_PASSWORD=root_password
+MARIADB_DATABASE=aievaluationtool
+MARIADB_USER=aiet_user
+MARIADB_PASSWORD=aiet_password
 
-Example:
+# Service-level DB fallback values
+DB_HOST=db
+DB_PORT=3306
 
-```json
-{
-  "db": {
-    "engine": "mariadb",
-    "host": "db",
-    "port": 3306,
-    "user": "aiet_user",
-    "password": "aiet_password",
-    "database": "aievaluationtool"
-  },
-  "files": {
-    "plans": "data/plans.json",
-    "testcases": "data/updated_datapoints.json",
-    "strategies": "data/strategy_id.json"
-  },
-  "target": {
-    "application_type": "WHATSAPP_WEB",
-    "application_name": "Vaidya AI",
-    "application_url": "https://web.whatsapp.com/",
-    "agent_name": "Vaidya AI"
-  },
-  "interface_manager": {
-    "docker": true,
-    "base_url": "http://interface-manager:8000"
-  }
-}
+# Auth redirects / route integration
+TCE_APP_URL=/
+TDMS_APP_URL=/tdms/dashboard
+AUTH_SERVICE_URL=http://auth-service:7500
+
+# TCE frontend build args
+REACT_APP_API_BASE_URL=/api
+REACT_APP_AUTH_SERVICE_URL=/auth
+REACT_APP_TDMS_API_BASE_URL=/tdms-api
+REACT_APP_TEST_DATA_URL=/tdms/dashboard
+REACT_APP_USER_LIST_URL=/tdms/users
+
+# TDMS frontend build args
+VITE_API_BASE_URL=/tdms-api
+VITE_AUTH_SERVICE_URL=/auth
+VITE_TEST_RUNS_HOME_URL=/
 ```
 
-## Configure Interface Manager For Docker Selenium
+### 3. Root `config.json` (Required For CLI Flow)
 
-Update `src/app/interface_manager/config.json` to use the remote Selenium service:
+Keep Docker-aware values:
+
+- `db.host` should be `db`
+- `interface_manager.docker` should be `true`
+- `interface_manager.base_url` should be `http://interface-manager:8000`
+
+### 4. `src/app/interface_manager/config.json` (Required For Browser Targets)
+
+Use remote Selenium mode:
 
 ```json
 {
-  "application_type": "WHATSAPP_WEB",
-  "server_url": "http://localhost:3000",
-  "whatsapp_url": "https://web.whatsapp.com",
-  "agent_name": "Vaidya AI",
-  "application_name": "Vaidya AI",
-  "application_url": "https://web.whatsapp.com/",
-  "headless": "False",
   "selenium_mode": "remote",
   "selenium_remote_url": "http://selenium-browser:4444/wd/hub"
 }
 ```
 
-This configuration tells Interface Manager not to try launching a browser locally inside the container. Instead, it connects to the dedicated Selenium container that already exposes WebDriver and a visible browser session.
+## Section 1: Run Through UI (Recommended For Most Users)
 
-## Why `host.docker.internal` Matters
-
-The `app-cli` service is configured with `host.docker.internal:host-gateway` in Compose so containerized CLI commands can reach services running on the host machine.
-
-This is especially important for:
-
-- Ollama running on the host
-- Sarvam AI served outside the Compose network
-- local SSH-forwarded ports to a remote GPU host
-
-That small detail is what makes the GPU workflows in the next page possible without having to add every model-serving process directly into Compose.
-
-## Build The Images
-
-Build the full stack:
+### Step 1: Build Images
 
 ```bash
 docker compose build
 ```
 
-If you only want the core evaluation services first:
+### Step 2: Start Full UI Stack
 
 ```bash
-docker compose build db selenium-browser interface-manager app-cli
+docker compose up -d nginx
 ```
 
-Building once up front helps avoid runtime surprises later, especially when the workflow needs Selenium, MariaDB, and the Python CLI container to be ready together.
+Bringing up `nginx` starts required dependencies (`app-front-end`, `tdms-frontend`, `app-backend`, `tdms-backend`, `auth-service`, `interface-manager`, `db`, `selenium-browser`).
 
-## Ports Used
+### Step 3: Verify Containers
 
-- `3306` for MariaDB
-- `4444` for Selenium WebDriver
-- `7900` for Selenium noVNC
-- `8000` for Interface Manager
-- `8080` for TDMS frontend
-- `8100` for TDMS backend
+```bash
+docker compose ps
+```
 
-## Recommended Pre-Run Checklist
+### Step 4: Open The Application
 
-- `.env` created
-- `config.json` updated for Docker service names
-- `src/app/interface_manager/config.json` set to remote Selenium
-- target details updated
-- data files present
-- model endpoints decided before starting execution
+- Main UI (TCE): `http://localhost:${NGINX_PORT:-80}/`
+- TDMS UI: `http://localhost:${NGINX_PORT:-80}/tdms/`
+- Selenium live view (via nginx): `http://localhost:${NGINX_PORT:-80}/selenium/`
+- Stack health check: `http://localhost:${NGINX_PORT:-80}/healthz`
 
-If these items are in place, the Docker run phase is usually much smoother.
+For detailed UI workflows after startup, refer to:
+
+- [TDMS + Dashboard UI Overview](../TDMS_and_Dashboard_ui/index.md)
+- [Authentication And Roles](../TDMS_and_Dashboard_ui/authentication_and_roles.md)
+- [TDMS Dashboard Manual](../TDMS_and_Dashboard_ui/tdms_dashboard_manual.md)
+- [Test Runs Manual](../TDMS_and_Dashboard_ui/test_runs_manual.md)
+- [Run Configuration Manual](../TDMS_and_Dashboard_ui/run_configuration_manual.md)
+- [Analysis And Run Details Manual](../TDMS_and_Dashboard_ui/analysis_and_run_details_manual.md)
+
+## Section 2: Run Through CLI (Importer, Execution, Analysis, Report)
+
+Use `app-backend` as the CLI runtime container.
+
+### Step 1: Ensure Core Services Are Running
+
+```bash
+docker compose up -d db selenium-browser interface-manager auth-service tdms-backend app-backend
+```
+
+### Step 2: Import Test Data
+
+```bash
+docker compose run --rm --no-deps -w /app app-backend \
+python src/app/importer/main.py --config config.json
+```
+
+### Step 3: Inspect Plans/Metrics (Optional but Recommended)
+
+```bash
+docker compose run --rm --no-deps -w /app app-backend \
+python src/app/testcase_executor/main.py --config config.json --get-plans
+```
+
+```bash
+docker compose run --rm --no-deps -w /app app-backend \
+python src/app/testcase_executor/main.py --config config.json --get-metrics
+```
+
+### Step 4: Execute Testcases
+
+```bash
+docker compose run --rm --no-deps -w /app app-backend \
+python src/app/testcase_executor/main.py --config config.json --testplan-id <id> --execute
+```
+
+### Step 5: Analyze Responses
+
+```bash
+docker compose run --rm --no-deps -w /app app-backend \
+python src/app/response_analyzer/analyze.py --config config.json --run-name <run_name>
+```
+
+### Step 6: Generate Report
+
+```bash
+docker compose run --rm --no-deps -w /app app-backend \
+python src/app/response_analyzer/report.py --config config.json --run-name <run_name> --get-report
+```
+
+## Optional: Use Built-In Sarvam AI Service
+
+If you want Compose-managed Sarvam instead of an external `GPU_URL` endpoint:
+
+```bash
+docker compose --profile sarvam up -d sarvam-ai
+```
+
+Then set:
+
+```env
+GPU_URL="http://sarvam-ai:16000/"
+```
+
+## Shutdown And Reset
+
+Stop all containers:
+
+```bash
+docker compose down
+```
+
+Stop and remove volumes (full reset):
+
+```bash
+docker compose down -v
+```
+
+## Final Pre-Run Checklist
+
+- `.env` created and validated
+- Docker service names used in `config.json`
+- remote Selenium enabled in `src/app/interface_manager/config.json`
+- test data files present under `data/`
+- target application details configured correctly
 
 [docker-compose]: ../../docker-compose.yml
-[dockerfile-app-cli]: ../../Dockerfile.app-cli
-[dockerfile-interface-manager]: ../../Dockerfile.interface-manager
-[dockerfile-tdms-backend]: ../../Dockerfile.tdms-backend
-[dockerfile-tdms-frontend]: ../../Dockerfile.tdms-frontend
-[getting-started-docker]: ../03-getting-started-docker.md
-[configuration]: ../05-configuration.md
-[readme]: ../../README.md
-[docker-guide]: ../../DOCKER.md

@@ -34,7 +34,7 @@ interface AllFiltersResponse {
 
 const ContinueRunPage: React.FC = () => {
 
-  const maxTestCases = ['10', '1', '30', '50', '100'];
+  const maxTestCases = ['5', '20', '30', '50', '100'];
   const languages = ['English', 'Spanish', 'French', 'German', 'Chinese'];
   const [isRunning, setIsRunning] = useState(false);
   const [totalTestCases, setTotalTestCases] = useState(0);

@@ -517,8 +517,8 @@ const TestRunsTable: React.FC<Props> = ({ filters, onFilterChange }) => {
                   >
                     <i className="bi bi-arrow-clockwise"></i>
                     <div>
-                      <p className="analyse-option-title">Rerun Whole</p>
-                      <p className="analyse-option-sub">Re-run all test cases from scratch</p>
+                      <p className="analyse-option-title">Run All</p>
+                      <p className="analyse-option-sub">Run all test cases </p>
                     </div>
                   </button>
                 </div>

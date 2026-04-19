@@ -2,7 +2,7 @@
     "base_url": "http://localhost:8000",
     "application_type": "WHATSAPP_WEB",
     "debug": "True",
-    "ollama_server_url": "http://localhost:11434",
+    "ollama_server_url": "http://host.docker.internal:11434",
     "server_url": "http://localhost:3000",
     "whatsapp_url": "https://web.whatsapp.com",
     "action": "send_all_prompts",
@@ -11,7 +11,7 @@
     "application_name": "Vaidya AI",
     "application_url": "https://wa.me/8828808350",
     "headless": "False",
-    "selenium_mode": "local",
+    "selenium_mode": "remote",
     "selenium_remote_url": "http://selenium-browser:4444/wd/hub",
     "not_used": " base_url, debug, ollama_server_url, action & run_mode(runmode used but not read from config)"
 }

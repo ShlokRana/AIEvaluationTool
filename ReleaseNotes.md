@@ -1,26 +1,34 @@
-### **Conversational AI Evaluation Tool - Version 1.2**
+### **Conversational AI Evaluation Tool - Version 2.0**
 
-#### **Description**: 
+#### **Description**:
 
-Version 1.2 builds upon the foundational architecture introduced in earlier releases with major enhancements across documentation, test data governance, API integration, and execution monitoring. This version introduces a significantly enhanced Test Case Execution Dashboard, delivering improved visibility, structured monitoring, and detailed execution tracking across conversational AI evaluation workflows. This release strengthens operational transparency and provides deeper insight into individual test case behavior within each evaluation run. 
+Version 2.0 is a major usability and operations release focused on complete dockerisation, unified UI access, and centralized documentation. This version brings the full application stack (including CLI workflows) into a Docker-first model, introduces single-port access through NGINX, and strengthens the end-to-end TDMS + Dashboard experience with clear, production-ready run guidance.
 
 #### **New Features**
-- **End-to-End Test Run Management**
+- **Full Dockerisation (Including CLI Workflows)**
 
-    The application enables users to configure and initiate AI test runs directly from a centralized web interface. Key parameters such as target model, test plan, domain, language, and metrics can be selected before execution. This streamlined workflow ensures consistency and simplifies evaluation management.
+    Version 2.0 dockerises the complete runtime path, including importer, testcase execution, analysis, and report generation through containerized CLI operations. This ensures consistent execution environments across machines and simplifies onboarding for both UI users and CLI operators.
 
-- **Centralized Monitoring Dashboard**
-    
-    All test runs are displayed in a unified dashboard showing status, timestamps, duration, and associated domains. Users can filter runs by domain, target, or status for quick access. This improves visibility and operational oversight across multiple evaluations.
+- **Single-Port NGINX Gateway**
 
-- **Detailed and Explainable Results**
-    
-    Each test run provides structured results with metrics, scores, and execution status for individual test cases. Users can drill down to view evaluation reasoning, metadata, and the full conversation context. This enhances transparency and supports responsible AI assessment.
+    The platform now supports a unified gateway model with NGINX as the single public entrypoint. Users can access Dashboard UI, TDMS UI, API routes, auth routes, and Selenium live view from one externally exposed port, improving deployment simplicity and operational clarity.
 
-- **Scalable Evaluation Framework**
-    
-    The system is designed to handle large-scale evaluation programs with structured data organization and reporting. Its modular configuration options allow flexible experimentation while maintaining traceability. This ensures scalability as evaluation needs expand.
+- **Integrated TDMS + Dashboard Experience**
 
-- **Enhancement in Response Analyzer**
+    TDMS and the Test Case Execution Dashboard are now documented and operated as a cohesive workflow. This improves continuity from test-data preparation to run execution, analysis, and reporting within a single integrated operational model.
 
-    The application introduces a Re-analysis feature that allows users to selectively re-evaluate failed or specific test cases without rerunning the entire test run. It also provides an option to generate and export evaluation reports, enabling easy documentation, review, and further analysis of the results.
+- **Full Functional Dashboard Flow (Execution + Analysis)**
+
+    The Dashboard workflow is now documented and presented as a full lifecycle experience, including execution monitoring, analysis steps, and report-oriented outcome review. This closes the previous operational gap where analysis handling was not clearly represented as part of the primary UI-driven flow.
+
+- **Refactored Docker Run Documentation (UI and CLI)**
+
+    Docker operational guides were split and refined into dedicated UI and CLI runbooks. Commands, service names, routes, and configuration references were updated to align with the current stack and reduce ambiguity during setup and day-to-day operations.
+
+- **Centralized Documentation Website**
+
+    Documentation is now consolidated and easier to navigate from a single source of truth, with complete setup, run, architecture, and user-manual coverage available in one place via the documentation portal.
+
+- **Web Application**
+
+    The platform's web application layer has been modernized to improve performance, accessibility, and maintainability. Deprecated CPGRAMS integration has been removed, and enhanced UI components with streamlined workflows provide a better user experience across all modules. A new Farmer Chatbot integration enables agricultural query support and domain-specific conversation workflows.

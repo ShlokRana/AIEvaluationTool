@@ -10,16 +10,31 @@ from contextlib import asynccontextmanager
 from urllib.parse import urlencode
 import logging
 import os
+from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-TCE_APP_URL = os.getenv("TCE_APP_URL", "http://localhost:3000")
-TDMS_APP_URL = os.getenv("TDMS_APP_URL", "http://localhost:8080/dashboard")
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+
+AUTH_BASE_PATH = os.getenv("AUTH_BASE_PATH", "/auth").strip()
+if AUTH_BASE_PATH in {"", "/"}:
+    AUTH_BASE_PATH = ""
+elif not AUTH_BASE_PATH.startswith("/"):
+    AUTH_BASE_PATH = f"/{AUTH_BASE_PATH}"
+
+
+def with_auth_base(path: str) -> str:
+    return f"{AUTH_BASE_PATH}{path}" if AUTH_BASE_PATH else path
+
+
+DEFAULT_PORTAL_URL = os.getenv("AUTH_DEFAULT_PORTAL_URL", with_auth_base("/web/portal"))
+TCE_APP_URL = os.getenv("TCE_APP_URL", "/")
+TDMS_APP_URL = os.getenv("TDMS_APP_URL", "/tdms/dashboard")
 
 
 def resolve_redirect_url(role: str | None, requested_return_url: str | None) -> str:
-    if requested_return_url and requested_return_url != "http://localhost:7500/web/portal":
+    if requested_return_url and requested_return_url != DEFAULT_PORTAL_URL:
         return requested_return_url
 
     normalized_role = (role or "").strip().lower()
@@ -42,6 +57,7 @@ app = FastAPI(
     description="Central Authentication Service for AI Evaluation Tool",
     version="1.0.0",
     lifespan=lifespan,
+    root_path=AUTH_BASE_PATH or ""
 )
 
 tdms_assets_dir = os.path.abspath(
@@ -49,6 +65,12 @@ tdms_assets_dir = os.path.abspath(
 )
 if os.path.isdir(tdms_assets_dir):
     app.mount("/web-assets", StaticFiles(directory=tdms_assets_dir), name="web-assets")
+    if AUTH_BASE_PATH:
+        app.mount(
+            f"{AUTH_BASE_PATH}/web-assets",
+            StaticFiles(directory=tdms_assets_dir),
+            name="web-assets-prefixed",
+        )
 
 raw_origins = os.getenv("CORS_ALLOW_ORIGINS", "")
 cors_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
@@ -108,7 +130,7 @@ async def logout(token_data: LogoutRequest, response: Response):
 @app.get("/web/login", response_class=HTMLResponse)
 async def web_login(
     request: Request,
-    return_url: str = "http://localhost:7500/web/portal",
+    return_url: str = DEFAULT_PORTAL_URL,
     db: Session = Depends(get_db),
 ):
     refresh_token_cookie = request.cookies.get("refresh_token")
@@ -132,9 +154,9 @@ async def web_login(
         except Exception:
             pass
 
-    cerai_logo_url = "/web-assets/cerai-logo.png"
-    iit_logo_url = "/web-assets/iit-logo.png"
-    background_url = "/web-assets/iit-background.jpeg"
+    cerai_logo_url = with_auth_base("/web-assets/cerai-logo.png")
+    iit_logo_url = with_auth_base("/web-assets/iit-logo.png")
+    background_url = with_auth_base("/web-assets/iit-background.jpeg")
 
     html = f"""
     <!DOCTYPE html>
@@ -321,7 +343,8 @@ async def web_login(
     <script>
       const q = new URLSearchParams(window.location.search);
       const returnUrl = q.get('return_url') || {return_url!r};
-      const defaultPortalUrl = 'http://localhost:7500/web/portal';
+      const defaultPortalUrl = {DEFAULT_PORTAL_URL!r};
+      const authBasePath = {AUTH_BASE_PATH!r};
       const tceAppUrl = {TCE_APP_URL!r};
       const tdmsAppUrl = {TDMS_APP_URL!r};
       const resolveRedirectUrl = (role, requestedReturnUrl) => {{
@@ -348,7 +371,7 @@ async def web_login(
         e.preventDefault();
         const user_name = document.getElementById('user_name').value;
         const password = document.getElementById('password').value;
-        const res = await fetch('/login', {{
+        const res = await fetch(`${{authBasePath}}/login`, {{
           method:'POST',
           headers:{{'Content-Type':'application/json'}},
           body: JSON.stringify({{ user_name, password }})
@@ -421,7 +444,7 @@ async def web_portal():
 @app.get("/web/logout")
 async def web_logout(
     request: Request,
-    return_url: str = "http://localhost:8000",
+    return_url: str = "/",
     db: Session = Depends(get_db),
 ):
     refresh_token_cookie = request.cookies.get("refresh_token")
@@ -434,6 +457,27 @@ async def web_logout(
     response.delete_cookie("access_token", path="/")
     response.delete_cookie("refresh_token", path="/")
     return response
+
+
+def add_prefixed_route_alias(path: str, endpoint, *, methods: list[str], **kwargs) -> None:
+    if not AUTH_BASE_PATH:
+        return
+
+    app.add_api_route(
+        f"{AUTH_BASE_PATH}{path}",
+        endpoint,
+        methods=methods,
+        include_in_schema=False,
+        **kwargs,
+    )
+
+
+add_prefixed_route_alias("/login", login, methods=["POST"])
+add_prefixed_route_alias("/refresh", refresh_token, methods=["POST"])
+add_prefixed_route_alias("/logout", logout, methods=["POST"])
+add_prefixed_route_alias("/web/login", web_login, methods=["GET"], response_class=HTMLResponse)
+add_prefixed_route_alias("/web/portal", web_portal, methods=["GET"], response_class=HTMLResponse)
+add_prefixed_route_alias("/web/logout", web_logout, methods=["GET"])
 
 if __name__ == "__main__":
     import uvicorn

@@ -2000,10 +2000,10 @@ class DB:
                     .first()
                 
                 # URL uniqueness validation
-                if target.target_url:
-                    existing_url = session.query(Targets).filter(Targets.target_url == target.target_url).first()
-                    if existing_url:
-                        raise ValueError(f"Target with URL '{target.target_url}' already exists.")
+                # if target.target_url:
+                #     existing_url = session.query(Targets).filter(Targets.target_url == target.target_url).first()
+                #     if existing_url:
+                #         raise ValueError(f"Target with URL '{target.target_url}' already exists.")
 
                 if target.target_name:
                     existing_name = session.query(Targets).filter(Targets.target_name == target.target_name).first()

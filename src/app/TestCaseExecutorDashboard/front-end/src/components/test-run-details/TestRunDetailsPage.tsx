@@ -16,6 +16,7 @@ interface RunSummary {
   status: string;
   start_ts: string;
   end_ts: string | null;
+  average_score?: number | null;
 }
 
 interface RunDetail {
@@ -43,6 +44,7 @@ const RunDetails: React.FC = () => {
 
   const [summary, setSummary] = useState<RunSummary | null>(null);
   const [details, setDetails] = useState<RunDetail[]>([]);
+  const [analyseLoading, setAnalyseLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
@@ -54,7 +56,15 @@ const RunDetails: React.FC = () => {
   const [openFilterColumn, setOpenFilterColumn] = useState<string | null>(null);
   const [showScrollHint, setShowScrollHint] = useState(false);
   const [isAtBottom, setIsAtBottom] = useState(false);
-
+  const [downloadState, setDownloadState] = useState<{
+      runName: string;
+      progress: number;
+      phase: "generating" | "done";
+    } | null>(null);
+  const [analyseModal, setAnalyseModal] = useState<{
+      runName: string;
+      hasScore: boolean;
+    } | null>(null);  
   const [cardHeight, setCardHeight] = useState<number | null>(null);
   const summaryCardRef = useRef<HTMLDivElement | null>(null);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
@@ -120,7 +130,22 @@ const RunDetails: React.FC = () => {
     });
     setOpenFilterColumn(null);
   };
-
+  const startAnalysis = async (mode: string, runName: string) => {
+      setAnalyseLoading(true);
+      try {
+        const url = API_ENDPOINTS.ANALYSE_RUN(runName, mode);
+        await fetch(url, {
+          method: "GET",
+          headers: getAuthHeaders(),
+          credentials: "include",
+        });
+        navigate(`/analyse/${encodeURIComponent(runName)}?mode=${mode}`);
+      } catch (err) {
+        console.error("Analysis failed:", err);
+        setAnalyseLoading(false);
+        setAnalyseModal(null);
+      }
+    };
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (openFilterColumn && filterRefs.current[openFilterColumn]) {
@@ -241,7 +266,9 @@ const RunDetails: React.FC = () => {
       })
       .then((data) => {
         setSummary(data.summary);
+        
         setDetails(data.details);
+        
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -311,41 +338,55 @@ const RunDetails: React.FC = () => {
                   <i className="bi bi-arrow-clockwise"></i>
                 </button>
                 <button
-                  type="button"
-                  className={`${styles.actionIconButton} ${styles.actionAnalyse}`}
-                  data-tooltip="Analyse"
-                  onClick={() => {
-                    if (hasExistingScores) {
-                      const confirmReanalyse = window.confirm(
-                        "This run already has a score. Do you want to reanalyse?"
-                      );
-
-                      if (!confirmReanalyse) return;
-                    }
-
-                    navigate(`/analyse/${encodeURIComponent(summary.run_name)}`);
-                  }}
-                  title="Analyse"
-                  aria-label={`Analyse ${summary.run_name}`}
-                >
-                  <i className="bi bi-bar-chart-fill"></i>
-                </button>
+                          type="button"
+                          className={`${styles.actionIconButton} ${styles.actionAnalyse}`}
+                          data-tooltip="Analyse"
+                          onClick={() => setAnalyseModal({ runName: summary.run_name, hasScore: typeof summary.average_score === "number" })}
+                          title="Analyse"
+                          aria-label={`Analyse ${summary.run_name}`}
+                        >
+                          <i className="bi bi-bar-chart-fill"></i>
+                        </button>
                 <button
                   type="button"
                   className={`${styles.actionIconButton} ${styles.actionReport}`}
                   data-tooltip="Report"
-                  onClick={() => {
+                  onClick={async () => {
+                  if (downloadState) return;
+                  setDownloadState({ runName: summary.run_name, progress: 0, phase: "generating" });
+                  let p = 0;
+                  const tick = setInterval(() => {
+                    p = Math.min(p + Math.random() * 7 + 1, 92);
+                    setDownloadState(prev => prev ? { ...prev, progress: Math.round(p) } : null);
+                    }, 180);
+                  try {
+                    const response = await fetch(API_ENDPOINTS.DOWNLOAD_REPORT_NEW(summary.run_name), {
+                      headers: getAuthHeaders(),
+                      credentials: "include",
+                      });
+                    if (!response.ok) throw new Error("Failed to download report");
+                    const blob = await response.blob();
+                    clearInterval(tick);
+                    setDownloadState(prev => prev ? { ...prev, progress: 100, phase: "done" } : null);
+                    const url = URL.createObjectURL(blob);
                     const link = document.createElement("a");
-                    link.href = API_ENDPOINTS.DOWNLOAD_REPORT(summary.run_name);
-                    link.setAttribute("download", `${summary.run_name}-evaluation.xlsx`);
+                    link.href = url;
+                    link.setAttribute("download", `${summary.run_name}-evaluation.pdf`);
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
-                  }}
-                  title="Report"
-                  aria-label={`Download report for ${summary.run_name}`}
-                >
-                  <i className="bi bi-clipboard2-check"></i>
+                    URL.revokeObjectURL(url);
+                    setTimeout(() => setDownloadState(null), 1500);
+                    } catch (err) {
+                    clearInterval(tick);
+                    setDownloadState(null);
+                    console.error("Report download failed:", err);
+                    }
+                    }}
+                    title="Report"
+                    aria-label={`Download report for ${summary.run_name}`}
+                    >
+                    <i className="bi bi-clipboard2-check"></i>
                 </button>
               </div>
             </div>
@@ -542,7 +583,82 @@ const RunDetails: React.FC = () => {
             </section>
         </div>
       </div>
-
+      {/* Download overlay */}
+      {downloadState && (
+        <div className="download-overlay">
+          <div className="download-overlay-card">
+            {downloadState.phase === "done" ? (
+              <div className="download-success-icon">
+                <i className="bi bi-check-lg" />
+              </div>
+            ) : (
+              <div className="download-big-spinner" />
+            )}
+            <div className="download-overlay-text">
+              <p className="download-overlay-title">
+                {downloadState.phase === "done" ? "Download ready" : "Generating report…"}
+              </p>
+              <p className="download-overlay-sub">
+                {downloadState.phase === "done" ? "Saving to your device…" : downloadState.runName}
+              </p>
+            </div>
+            <div className="download-prog-track">
+              <div className="download-prog-fill" style={{ width: `${downloadState.progress}%` }} />
+            </div>
+            <span className="download-pct">{downloadState.progress}%</span>
+          </div>
+        </div>
+      )}             
+      {analyseModal && (
+        <div className="download-overlay" onClick={() => { if (!analyseLoading) setAnalyseModal(null); }}>
+          <div className="download-overlay-card analyse-modal" onClick={(e) => e.stopPropagation()}>
+            {analyseLoading ? (
+              <>
+                <div className="download-big-spinner" />
+                <div className="analyse-modal-header">
+                  <p className="download-overlay-title" style={{ margin: 0 }}>Starting Analysis…</p>
+                  <p className="download-overlay-sub" style={{ marginTop: 4 }}>{analyseModal.runName}</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="analyse-modal-header">
+                  <i className="bi bi-bar-chart-fill analyse-modal-icon"></i>
+                  <p className="download-overlay-title" style={{ margin: 0 }}>Analyse Run</p>
+                  <p className="download-overlay-sub" style={{ marginTop: 4 }}>{analyseModal.runName}</p>
+                </div>
+                <div className="analyse-modal-options">
+                  {analyseModal.hasScore && (
+                    <button
+                      className="analyse-option-btn"
+                      onClick={() => startAnalysis("retry_failed", analyseModal.runName)}
+                    >
+                      <i className="bi bi-arrow-repeat"></i>
+                      <div>
+                        <p className="analyse-option-title">Retry Failed</p>
+                        <p className="analyse-option-sub">Re-run only the failed test cases</p>
+                      </div>
+                    </button>
+                  )}
+                  <button
+                    className="analyse-option-btn"
+                    onClick={() => startAnalysis("rerun_all", analyseModal.runName)}
+                  >
+                    <i className="bi bi-arrow-clockwise"></i>
+                    <div>
+                      <p className="analyse-option-title">Run All</p>
+                      <p className="analyse-option-sub">Run all test cases </p>
+                    </div>
+                  </button>
+                </div>
+                <button className="analyse-cancel-btn" onClick={() => setAnalyseModal(null)}>
+                  Cancel
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       <Modal conversationId={selectedConversationId} />
     </div>
   );

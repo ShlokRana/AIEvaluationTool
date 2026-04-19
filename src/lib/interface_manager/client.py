@@ -157,7 +157,7 @@ class InterfaceManagerClient:
             )
 
         # If application_url is local → LOCAL provider
-        if self.base_url.startswith("http://localhost") or self.base_url.startswith("http://127.0.0.1"):
+        if self.local_llm_base_url.startswith("http://localhost") or self.local_llm_base_url.startswith("http://127.0.0.1") or self.local_llm_base_url.startswith("http://host.docker.internal"):
             self.logger.info("Detected LOCAL provider via application_url")
             return "LOCAL"
 

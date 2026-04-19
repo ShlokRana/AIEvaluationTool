@@ -31,6 +31,13 @@ FROM base AS runtime-base
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libmariadb3 \
+    libglib2.0-0 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libcairo2 \
+    libgdk-pixbuf-2.0-0 \
+    shared-mime-info \
+    fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/venv /opt/venv
@@ -56,3 +63,8 @@ FROM runtime-base AS auth-service
 WORKDIR /app/src/app/auth_service
 EXPOSE 7500
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7500"]
+
+FROM runtime-base AS sarvam-ai
+WORKDIR /app/src/app/sarvam_ai
+EXPOSE 16000
+CMD ["python", "main.py"]

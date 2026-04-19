@@ -1,11 +1,11 @@
 // API Configuration
 export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:7250";
+  import.meta.env.VITE_API_BASE_URL || "/tdms-api";
 
 export const WS_BASE_URL = API_BASE_URL.replace(/^http/i, "ws");
 
 export const AUTH_SERVICE_URL =
-  import.meta.env.VITE_AUTH_SERVICE_URL || "http://localhost:7500";
+  import.meta.env.VITE_AUTH_SERVICE_URL || "/auth";
 
 // Auth endpoints
 export const AUTH_PAGE_URL = `${AUTH_SERVICE_URL}/web/login`;
@@ -199,4 +199,3 @@ export const API_ENDPOINTS = {
   IMPORTER_RUN: `${API_BASE_URL}/api/importer/run`,
   IMPORTER_STATUS_WS: `${WS_BASE_URL}/api/importer/ws`,
 };
-

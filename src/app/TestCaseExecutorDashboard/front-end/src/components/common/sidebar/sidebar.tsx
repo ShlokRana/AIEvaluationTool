@@ -30,14 +30,16 @@ const Sidebar = ({ onLogout }: SidebarProps) => {
   const [userInfo, setUserInfo] = useState<UserInfo>({ user_name: "UserName", email: "", role: "Admin" });
   const [isLoading, setIsLoading] = useState(true);
   const loginUrl = LOGIN_URL;
-  const testDataUrl = process.env.REACT_APP_TEST_DATA_URL || "http://localhost:8080/dashboard";
-  const userListUrl = process.env.REACT_APP_USER_LIST_URL || "http://localhost:8080/users";
+  const testDataUrl = process.env.REACT_APP_TEST_DATA_URL || "/tdms/dashboard";
+  const userListUrl = process.env.REACT_APP_USER_LIST_URL || "/tdms/users";
   const tdmsBaseUrl =
-    process.env.REACT_APP_TDMS_API_BASE_URL || "http://localhost:7250";
+    process.env.REACT_APP_TDMS_API_BASE_URL || "/tdms-api";
   const currentUserUrl =
     process.env.REACT_APP_CURRENT_USER_URL ||
     `${tdmsBaseUrl}/api/users/me`;
-  const authLoginUrl = process.env.REACT_APP_AUTH_SERVICE_URL ? `${process.env.REACT_APP_AUTH_SERVICE_URL}/web/login` : "http://localhost:7500/web/login";
+  const authLoginUrl = process.env.REACT_APP_AUTH_SERVICE_URL
+    ? `${process.env.REACT_APP_AUTH_SERVICE_URL}/web/login`
+    : "/auth/web/login";
 
   const clearSession = () => {
     localStorage.removeItem("access_token");

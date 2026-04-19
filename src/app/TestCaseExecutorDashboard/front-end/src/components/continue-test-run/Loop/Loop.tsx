@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import {WS_BASE_URL,} from "../../../config/api"
+
 
 interface LoopProps {
   isRunning: boolean;
@@ -52,7 +54,7 @@ const Loop: React.FC<LoopProps> = ({
   useEffect(() => {
     if (!isRunning) return;
 
-    const ws = new WebSocket("ws://localhost:7000/ws/test-run");
+    const ws = new WebSocket(`${WS_BASE_URL}/ws/test-run`);
 
     ws.onopen = () => {
       console.log("✅ WebSocket connected");

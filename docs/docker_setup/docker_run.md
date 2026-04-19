@@ -1,103 +1,104 @@
 # Docker Run
 
-This page documents the day-to-day commands used to build, start, run, monitor, and stop the Docker-based evaluation workflow.
+This page documents the CLI workflow using a shell inside the running backend container.
 
-Think of this page as the operational companion to the setup pages. Once configuration and GPU connectivity are ready, these are the commands you will use most often while running evaluations.
+It is the operational companion to [Setup And Configuration](./setup_and_configuration.md).
 
-## Build The Images
+## Purpose
 
-Build the full stack:
+- Open a bash shell inside `app-backend`
+- Run importer, testcase execution, analysis, and reporting commands from that shell
+
+## Start Required Services
+
+From the host machine:
 
 ```bash
 docker compose build
+docker compose up -d db selenium-browser interface-manager auth-service tdms-backend app-backend
 ```
 
-This prepares the reusable images for the CLI, Interface Manager, and optional TDMS services.
-
-## Start Core Services
-
-Start the database, Selenium browser, and Interface Manager:
-
-```bash
-docker compose up -d db selenium-browser interface-manager
-```
-
-These are the baseline services that should be running before you try importer, executor, or analyzer commands.
-
-## Check Service Status
+Check status:
 
 ```bash
 docker compose ps
 ```
 
-For browser-backed targets, you can open the Selenium noVNC view at `http://localhost:7900`.
+## Open Bash In `app-backend`
 
-This is a good early sanity check before starting a longer evaluation run.
+From the host machine:
+
+```bash
+docker exec -it app-backend bash
+```
+
+If your local container is named differently, use:
+
+```bash
+docker exec -it aiet-app-backend bash
+```
+
+## Run CLI Commands Inside Container
+
+All commands below are run inside the container shell.
 
 ## Import Test Data
 
-The importer loads the configured datapoints and evaluation assets into the database used by the rest of the workflow.
-
 ```bash
-docker compose run --rm app-cli \
 python src/app/importer/main.py --config config.json
 ```
 
-## Run Testcase Execution
-
-This step sends prompts to the configured target application through Interface Manager and records the responses for later analysis.
+## Inspect Plans / Metrics (Optional)
 
 ```bash
-docker compose run --rm -w /app/src/app/testcase_executor app-cli \
-python main.py --config config.json --testplan-id <id> --execute
+python src/app/testcase_executor/main.py --config config.json --get-plans
 ```
 
-If you need more control, use the same executor arguments documented in the CLI section, such as `--metric-id`, `--testcase-id`, or `--max-testcases`.
+```bash
+python src/app/testcase_executor/main.py --config config.json --get-metrics
+```
+
+## Execute Testcases
+
+```bash
+python src/app/testcase_executor/main.py --config config.json --testplan-id <id> --execute
+```
 
 ## Analyze Responses
 
-After execution completes, run the analyzer to evaluate the collected responses with the configured strategies.
-
 ```bash
-docker compose run --rm -w /app/src/app/response_analyzer app-cli \
-python analyze.py --config config.json --run-name <run_name>
+python src/app/response_analyzer/analyze.py --config config.json --run-name <run_name>
 ```
 
 ## Generate The Report
 
-The report step turns analyzed run data into a more readable final output for review and sharing.
-
 ```bash
-docker compose run --rm -w /app/src/app/response_analyzer app-cli \
-python report.py --config config.json --run-name <run_name>
+python src/app/response_analyzer/report.py --config config.json --run-name <run_name> --get-report
 ```
 
-## Optional: Run TDMS
+For UI-side run monitoring and result interpretation, refer to:
 
-If you also want the Test Data Management System in the same Docker environment, you can bring up the TDMS services separately.
+- [Test Runs Manual](../TDMS_and_Dashboard_ui/test_runs_manual.md)
+- [Run Configuration Manual](../TDMS_and_Dashboard_ui/run_configuration_manual.md)
+- [Analysis And Run Details Manual](../TDMS_and_Dashboard_ui/analysis_and_run_details_manual.md)
 
-Build TDMS images:
+## Optional: Start Sarvam Service
 
-```bash
-docker compose build tdms-backend tdms-frontend
-```
-
-Start TDMS services:
+From the host machine:
 
 ```bash
-docker compose up -d tdms-backend tdms-frontend
+docker compose --profile sarvam up -d sarvam-ai
 ```
 
-Access:
+## Exit Container Shell
 
-- TDMS frontend at `http://localhost:8080`
-- TDMS backend docs at `http://localhost:8100/docs`
+```bash
+exit
+```
 
 ## Stop The Stack
 
-Use this when you want to shut the environment down but preserve existing database state.
-
-Stop containers but keep persistent volumes:
+From the host machine:
 
 ```bash
 docker compose down
@@ -105,44 +106,28 @@ docker compose down
 
 ## Full Reset
 
-Stop the stack and remove named volumes:
+From the host machine:
 
 ```bash
 docker compose down -v
 ```
 
-Use this when you want to fully reset MariaDB-backed state.
-
 ## Clean Up Docker Resources
+
+From the host machine:
 
 ```bash
 docker system prune -a --volumes
 ```
 
-Use this only when you intentionally want broader Docker cleanup.
-
 ## Troubleshooting
 
-Most issues in this flow come from one of four places: database readiness, Selenium reachability, stale config, or model endpoint connectivity.
+- If `docker exec -it app-backend bash` fails, run `docker ps` and confirm the container name.
+- If DB connection fails, verify `db.host` is `db` in `config.json`.
+- If browser-backed execution fails, verify `selenium_mode: "remote"` and `selenium_remote_url: "http://selenium-browser:4444/wd/hub"` in `src/app/interface_manager/config.json`.
 
-- Keep `selenium_mode: "remote"` and `selenium_remote_url: "http://selenium-browser:4444/wd/hub"`.
-- If CLI commands fail on database connection, verify `db` is healthy with `docker compose ps`.
-- If browser automation is not visible, verify `http://localhost:7900` is reachable.
-- If config changes are not reflected, recreate the services.
-
-Recreate the stack:
+Recreate core services:
 
 ```bash
-docker compose up -d --force-recreate db selenium-browser interface-manager app-cli tdms-frontend tdms-backend
+docker compose up -d --force-recreate db selenium-browser interface-manager auth-service tdms-backend app-backend app-front-end tdms-frontend nginx
 ```
-
-## Recommended Run Order
-
-- build images
-- start core services
-- verify GPU endpoints are reachable
-- import test data
-- execute testcases
-- run analysis
-- generate reports
-
