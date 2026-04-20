@@ -1994,8 +1994,7 @@ class DB:
                 existing_target = session.query(Targets)\
                     .options(joinedload(Targets.domain), joinedload(Targets.langs))\
                     .filter(
-                        (Targets.target_name == target.target_name) |
-                        (Targets.target_url == target.target_url)
+                        (Targets.target_name == target.target_name)
                     )\
                     .first()
                 
