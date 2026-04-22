@@ -4,11 +4,6 @@ This section documents the integrated local workflow between TDMS (Test Data Man
 
 TDMS is used to curate and manage evaluation data. The dashboard is used to execute runs, monitor progress, and review analysis outputs.
 
-Frontend run options in this section:
-
-- `without NGINX`: direct development servers
-- `with NGINX`: static build hosting for both UIs
-
 
 ## What This Section Covers
 
