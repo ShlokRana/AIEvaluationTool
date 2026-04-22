@@ -31,7 +31,7 @@ Public access is through `nginx` on `http://localhost:${NGINX_PORT:-80}`.
 
 ## Configuration Files To Prepare
 
-### 1. Root `.env`
+### 1. Root and Strategy `.env`
 
 Create `.env` if not present:
 
@@ -51,6 +51,22 @@ SARVAM_API_KEY=""
 GEMINI_API_KEY=""
 OPENAI_API_KEY=""
 ```
+
+For strategy defaults used by `src/lib/strategy/utils_new.py`, keep `src/lib/strategy/.env` present.
+
+```bash
+cp src/lib/strategy/.env.example src/lib/strategy/.env
+```
+
+Expected values:
+
+```env
+DATA_PATH=data/
+DEFAULT_VALUES_PATH=data/defaults.json
+EXAMPLES_DIR=data/examples/
+IMAGES_DIR=data/images/
+```
+
 
 ### 2. Optional `.env` Overrides (All Compose-Tunable Variables)
 
