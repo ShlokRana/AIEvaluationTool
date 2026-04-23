@@ -290,8 +290,8 @@ async def run_analyse_background_service(run_name: str, db, mode: str = "rerun_a
                     if conversation is None and conversation_id:
                         conversation = db.get_conversation_by_id(conversation_id)
                     if conversation is not None:
-                        # Set score to 0 when there's an error
-                        conversation.evaluation_score = 0.0
+                        # Set score to None when there's an error
+                        conversation.evaluation_score = None
                         conversation.evaluation_reason = ""
                         conversation.evaluation_ts = datetime.now().isoformat()
                         db.add_or_update_conversation(conversation=conversation, override=True)

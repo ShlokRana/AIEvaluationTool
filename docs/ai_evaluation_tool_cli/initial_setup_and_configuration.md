@@ -14,6 +14,7 @@ This page covers everything required before running the AI Evaluation Tool from 
 
 ### Software Requirements
 
+- Linux only.
 - `Python 3.10+`
 - `Node.js 20.19+` or `22.12+`
 - `MariaDB Server 10.5+` if using MariaDB
