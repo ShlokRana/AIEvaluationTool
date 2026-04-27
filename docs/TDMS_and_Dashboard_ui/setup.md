@@ -4,7 +4,7 @@ Use this guide to run TDMS and the Test Case Execution Tool (Dashboard) locally 
 
 
 
-## UI And Service Matrix
+## UI And Services
 
 ### Frontend UIs
 
@@ -24,10 +24,14 @@ Use this guide to run TDMS and the Test Case Execution Tool (Dashboard) locally 
 
 ## Prerequisites
 
+- Linux only.
 - Python `3.10+`
 - Node.js `20.19+` or `22.12+`
-- npm
-- Chrome browser (needed for interface-manager web automation scenarios)
+- `MariaDB Server 10.5+` if using MariaDB
+- Latest Google Chrome
+- Matching ChromeDriver version
+- `Ollama` for local LLM serving
+- GPU drivers when running accelerated inference
 
 ## Create Required `.env` Files
 
@@ -58,8 +62,9 @@ OPENAI_API_KEY=
 Create `src/app/TDMS/front-end/.env`:
 
 ```env
-VITE_API_BASE_URL=http://localhost:7250
-VITE_AUTH_SERVICE_URL=http://localhost:7500
+VITE_API_BASE_URL="http://localhost:7250"
+VITE_AUTH_SERVICE_URL="http://localhost:7500"
+VITE_TEST_RUNS_HOME_URL="http://localhost:3000"
 ```
 
 ### Dashboard frontend `.env`
@@ -67,8 +72,11 @@ VITE_AUTH_SERVICE_URL=http://localhost:7500
 Create `src/app/TestCaseExecutorDashboard/front-end/.env`:
 
 ```env
-REACT_APP_API_BASE_URL=http://localhost:7000
-REACT_APP_AUTH_SERVICE_URL=http://localhost:7500
+REACT_APP_API_BASE_URL="http://localhost:7000"
+REACT_APP_AUTH_SERVICE_URL="http://localhost:7500"
+REACT_APP_TDMS_API_BASE_URL="http://localhost:7250"
+REACT_APP_TEST_DATA_URL="http://localhost:8080/dashboard"
+REACT_APP_USER_LIST_URL="http://localhost:8080/users"
 ```
 
 ### Auth service `.env`
@@ -76,9 +84,8 @@ REACT_APP_AUTH_SERVICE_URL=http://localhost:7500
 Create `src/app/auth_service/.env`:
 
 ```env
-
-TCE_APP_URL=http://localhost:3000
-TDMS_APP_URL=http://localhost:8080/dashboard
+TCE_APP_URL="http://localhost:3000"
+TDMS_APP_URL="http://localhost:8080/dashboard"
 
 ```
 
@@ -180,11 +187,11 @@ cd src/app/TDMS/back-end
 python main.py
 ```
 
-3. Dashboard backend (test case execution backend):
+3. Dashboard backend:
 
 ```bash
-cd src/app/TestCaseExecutorDashboard/back-end
-python main.py
+cd src/app/TestCaseExecutorDashboard
+python back-end/main.py
 ```
 
 4. Interface manager:
@@ -195,7 +202,7 @@ python main.py
 ```
 ## GPU Setup
 
-For GPU setup instructions, refer to [gpu_setup.md](../ai_evaluation_tool_cli/gpu_setup.md).
+For GPU setup instructions, refer to [GPU setup.](../ai_evaluation_tool_cli/gpu_setup.md).
 
 ## Run Frontend 
 

@@ -317,16 +317,13 @@ def main():
     # PDF generation
     # ------------------------------------------------------------
 
-    report = EvaluationReport()
-
-    headers, rows = report.scorecard_to_table(score_card)
-
-    pdf_path = os.path.join(
+    report_generator = EvaluationReport()
+    headers, rows = report_generator.scorecard_to_table(score_card)
+    output_file = os.path.join(
         reports_folder,
         f"AI_Evaluation_Report_{target_name}_{run_name}.pdf"
     )
-    print(pdf_path)
-    filename = report.create_report(
+    filename = report_generator.create_report(
         target_name=target_name,
         run_name=run_name,
         timestamp=timestamp,
@@ -335,7 +332,7 @@ def main():
         headers=headers,
         rows=rows,
         score_card=score_card,
-        output_file=pdf_path
+        output_file=output_file,
     )
 
     logger.info(

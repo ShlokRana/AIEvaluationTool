@@ -401,12 +401,14 @@ def get_all_test_runs_service(
                 duration_ms = int(total_seconds * 1000)    
 
             scores = []
+            count = 0
             for e in timeline:
                 if (e.evaluation_score is not None) and (e.evaluation_score <= 1):
+                    count += 1
                     scores.append(float(e.evaluation_score))
 
             average_score = (
-                round(sum(scores) / len(scores), 4)
+                round(sum(scores) / count, 4)
                 if scores 
                 else None
             )

@@ -1,7 +1,7 @@
 {
     "db": {
         "engine": "mariadb",
-        "host": "localhost",
+        "host": "db",
         "port": 3306,
         "user": "aiet_user",
         "password": "aiet_password",
