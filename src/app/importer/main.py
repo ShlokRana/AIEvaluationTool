@@ -361,3 +361,12 @@ tgt = Target(target_name="FarmerChat",
              target_domain="agriculture",
              target_languages=["english"])
 target_id = db.add_or_get_target(target = tgt)
+tgt = Target(
+    target_name="FellowshipChatbot",
+    target_type="API",
+    target_url="http://localhost:9000",
+    target_description="Gates Foundation AI Fellowship India 2026 FAQ chatbot built with LangChain + FAISS + GPT-3.5-turbo.",
+    target_domain="hr",
+    target_languages=["english"],
+)
+target_id = db.add_or_get_target(target=tgt)
