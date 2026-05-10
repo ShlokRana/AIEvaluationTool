@@ -382,7 +382,10 @@ class OllamaConnect:
 
 # The EvaluationReport class is responsible for generating a PDF report of the evaluation results. 
 # Report Generation class        
-from weasyprint import HTML
+try:
+    from weasyprint import HTML
+except Exception:
+    HTML = None  # weasyprint unavailable; PDF generation disabled
 from datetime import datetime
 
 class EvaluationReport:
