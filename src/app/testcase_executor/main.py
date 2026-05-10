@@ -30,7 +30,9 @@ def is_error_response(response):
         "[error: connection refused]",
         "no response received"
     ]
-    return len(response) == 0 or any(indicator in response[0]['response'].lower() for indicator in error_indicators)
+    if isinstance(response, str):
+        return len(response) == 0 or any(indicator in response.lower() for indicator in error_indicators)
+    return len(response) == 0 or any(indicator in response[0]["response"].lower() for indicator in error_indicators)
 
 def main():
     """ Main function to handle command-line arguments and execute test cases.
@@ -480,7 +482,7 @@ def main():
                             db.add_or_update_testrun_detail(rundetail)
                         else:
                             conv.response_ts = datetime.now().isoformat()
-                            conv.agent_response = agent_response[0]['response']
+                            conv.agent_response = agent_response if isinstance(agent_response, str) else agent_response[0]['response']
                             db.add_or_update_conversation(conversation=conv)
 
                             rundetail.status = "COMPLETED"
@@ -609,7 +611,7 @@ def main():
                             continue
 
                         conv.response_ts = datetime.now().isoformat()
-                        conv.agent_response = agent_response[0]['response']
+                        conv.agent_response = agent_response if isinstance(agent_response, str) else agent_response[0]['response']
                         db.add_or_update_conversation(conversation=conv)
 
                         rundetail.status = "COMPLETED"
@@ -720,7 +722,7 @@ def main():
                             continue
 
                         conv.response_ts = datetime.now().isoformat()
-                        conv.agent_response = agent_response[0]['response']
+                        conv.agent_response = agent_response if isinstance(agent_response, str) else agent_response[0]['response']
                         db.add_or_update_conversation(conversation=conv)
 
                         rundetail.status = "COMPLETED"
